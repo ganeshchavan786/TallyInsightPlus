@@ -7,6 +7,12 @@ let ledgerTransactions = [];
 let currentTab = 'transactions';
 let sortColumn = 'date';
 let sortDirection = 'desc';
+let currentMainTab = 'ledgerlist';
+let ledgerMasterData = [];  // Full ledger master data with 30 fields
+let filteredLedgerList = [];
+let ledgerListSortColumn = 'name';
+let ledgerListSortDirection = 'asc';
+let currentLedgerCategory = 'all';  // all, sundry_debtors, sundry_creditors
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -17,10 +23,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loaded = await loadCompanies();
     console.log('Companies loaded:', loaded, 'selectedCompany:', selectedCompany);
     if (loaded && selectedCompany) {
-        await loadLedgerList();
+        await loadLedgerMaster();  // Load full ledger master data
+        await loadLedgerList();    // Load simple list for dropdown
     } else {
         console.warn('No company selected, cannot load ledgers');
     }
+    
+    setupLedgerListSorting();
 });
 
 // Company change handler
@@ -32,8 +41,251 @@ async function onCompanyChange() {
     showTableEmpty('tableBody', 'Select a ledger to view transactions', 7);
     document.getElementById('tableTitle').textContent = 'Select a Ledger';
     
+    await loadLedgerMaster();
     await loadLedgerList();
-    showToast(`Loaded ${allLedgers.length} ledgers for ${selectedCompany}`, 'success');
+    showToast(`Loaded ${ledgerMasterData.length} ledgers for ${selectedCompany}`, 'success');
+}
+
+// Switch main tab (Ledger List / Transactions)
+function switchMainTab(tab) {
+    currentMainTab = tab;
+    
+    document.querySelectorAll('.report-tab[data-maintab]').forEach(t => {
+        t.classList.toggle('active', t.dataset.maintab === tab);
+    });
+    
+    document.getElementById('ledgerListView').style.display = tab === 'ledgerlist' ? 'block' : 'none';
+    document.getElementById('transactionsView').style.display = tab === 'transactions' ? 'block' : 'none';
+}
+
+// Load ledger master data (30 fields)
+async function loadLedgerMaster() {
+    const tbody = document.getElementById('ledgerListBody');
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell"><div class="spinner"></div> Loading ledgers...</td></tr>';
+    }
+    
+    try {
+        console.log('Loading ledger master for company:', selectedCompany);
+        const response = await apiFetch(`/api/v1/tally/ledger/master?company=${encodeURIComponent(selectedCompany)}`);
+        console.log('Ledger master response:', response);
+        
+        ledgerMasterData = response?.ledgers || [];
+        filteredLedgerList = [...ledgerMasterData];
+        
+        console.log(`Loaded ${ledgerMasterData.length} ledgers with full data`);
+        
+        renderLedgerListTable();
+        
+    } catch (error) {
+        console.error('Failed to load ledger master:', error);
+        ledgerMasterData = [];
+        filteredLedgerList = [];
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Failed to load ledgers: ' + error.message + '</td></tr>';
+        }
+    }
+}
+
+// Render ledger list table
+function renderLedgerListTable() {
+    const tbody = document.getElementById('ledgerListBody');
+    const countEl = document.getElementById('ledgerListCount');
+    
+    if (!tbody) return;
+    
+    if (filteredLedgerList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No ledgers found</td></tr>';
+        if (countEl) countEl.textContent = '0 ledgers';
+        return;
+    }
+    
+    let html = '';
+    filteredLedgerList.forEach(ledger => {
+        const name = ledger.basic?.name || '';
+        const parent = ledger.basic?.parent || '';
+        const gstin = ledger.statutory?.gstin || '';
+        const mobile = ledger.contact?.mobile || '';
+        const email = ledger.contact?.email || '';
+        const opening = ledger.balance?.opening || '';
+        const closing = ledger.balance?.closing || '';
+        
+        const escapedName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        
+        html += `
+            <tr onclick="openLedgerTransactions('${escapedName}')" style="cursor: pointer;">
+                <td><strong>${name}</strong></td>
+                <td>${parent}</td>
+                <td>${gstin}</td>
+                <td>${mobile}</td>
+                <td>${email}</td>
+                <td class="text-right">${opening}</td>
+                <td class="text-right">${closing}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    if (countEl) countEl.textContent = `${filteredLedgerList.length} ledgers`;
+}
+
+// Switch ledger category (All / Sundry Debtors / Sundry Creditors)
+function switchLedgerCategory(category) {
+    currentLedgerCategory = category;
+    
+    // Update tab active state
+    document.querySelectorAll('.report-tab[data-category]').forEach(t => {
+        t.classList.toggle('active', t.dataset.category === category);
+    });
+    
+    // Clear search
+    const searchInput = document.getElementById('ledgerListSearch');
+    if (searchInput) searchInput.value = '';
+    
+    // Apply filter
+    filterLedgerList();
+}
+
+// Filter ledger list by search and category
+function filterLedgerList() {
+    const searchInput = document.getElementById('ledgerListSearch');
+    const search = searchInput ? searchInput.value.toLowerCase() : '';
+    
+    // First filter by category
+    let categoryFiltered = [];
+    if (currentLedgerCategory === 'all') {
+        categoryFiltered = [...ledgerMasterData];
+    } else if (currentLedgerCategory === 'sundry_debtors') {
+        categoryFiltered = ledgerMasterData.filter(ledger => {
+            const parent = (ledger.basic?.parent || '').toLowerCase();
+            return parent === 'sundry debtors';
+        });
+    } else if (currentLedgerCategory === 'sundry_creditors') {
+        categoryFiltered = ledgerMasterData.filter(ledger => {
+            const parent = (ledger.basic?.parent || '').toLowerCase();
+            return parent === 'sundry creditors';
+        });
+    }
+    
+    // Then filter by search
+    if (!search) {
+        filteredLedgerList = categoryFiltered;
+    } else {
+        filteredLedgerList = categoryFiltered.filter(ledger => {
+            const name = (ledger.basic?.name || '').toLowerCase();
+            const parent = (ledger.basic?.parent || '').toLowerCase();
+            const gstin = (ledger.statutory?.gstin || '').toLowerCase();
+            const mobile = (ledger.contact?.mobile || '').toLowerCase();
+            const email = (ledger.contact?.email || '').toLowerCase();
+            
+            return name.includes(search) || 
+                   parent.includes(search) || 
+                   gstin.includes(search) || 
+                   mobile.includes(search) || 
+                   email.includes(search);
+        });
+    }
+    
+    renderLedgerListTable();
+}
+
+// Open ledger transactions (click on row)
+function openLedgerTransactions(ledgerName) {
+    selectedLedger = ledgerName;
+    document.getElementById('ledgerSearchInput').value = ledgerName;
+    
+    // Switch to transactions tab
+    switchMainTab('transactions');
+    
+    // Show stats and tabs
+    document.getElementById('ledgerStats').style.display = 'grid';
+    document.getElementById('ledgerTabs').style.display = 'flex';
+    document.getElementById('tableTitle').textContent = ledgerName;
+    
+    // Load transactions
+    loadLedgerTransactions();
+}
+
+// Setup ledger list sorting
+function setupLedgerListSorting() {
+    document.querySelectorAll('#ledgerListTable th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.dataset.sort;
+            if (ledgerListSortColumn === column) {
+                ledgerListSortDirection = ledgerListSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                ledgerListSortColumn = column;
+                ledgerListSortDirection = 'asc';
+            }
+            updateLedgerListSortIcons();
+            sortLedgerList();
+            renderLedgerListTable();
+        });
+    });
+}
+
+// Update ledger list sort icons
+function updateLedgerListSortIcons() {
+    document.querySelectorAll('#ledgerListTable th[data-sort]').forEach(th => {
+        const icon = th.querySelector('.sort-icon');
+        if (!icon) return;
+        
+        if (th.dataset.sort === ledgerListSortColumn) {
+            icon.textContent = ledgerListSortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            icon.textContent = '↕';
+        }
+    });
+}
+
+// Sort ledger list
+function sortLedgerList() {
+    filteredLedgerList.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch (ledgerListSortColumn) {
+            case 'name':
+                aVal = a.basic?.name || '';
+                bVal = b.basic?.name || '';
+                break;
+            case 'parent':
+                aVal = a.basic?.parent || '';
+                bVal = b.basic?.parent || '';
+                break;
+            case 'gstin':
+                aVal = a.statutory?.gstin || '';
+                bVal = b.statutory?.gstin || '';
+                break;
+            case 'mobile':
+                aVal = a.contact?.mobile || '';
+                bVal = b.contact?.mobile || '';
+                break;
+            case 'email':
+                aVal = a.contact?.email || '';
+                bVal = b.contact?.email || '';
+                break;
+            case 'opening':
+                aVal = parseFloat((a.balance?.opening || '0').replace(/[₹,]/g, '')) || 0;
+                bVal = parseFloat((b.balance?.opening || '0').replace(/[₹,]/g, '')) || 0;
+                break;
+            case 'closing':
+                aVal = parseFloat((a.balance?.closing || '0').replace(/[₹,]/g, '')) || 0;
+                bVal = parseFloat((b.balance?.closing || '0').replace(/[₹,]/g, '')) || 0;
+                break;
+            default:
+                aVal = '';
+                bVal = '';
+        }
+        
+        if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+        }
+        
+        if (aVal < bVal) return ledgerListSortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return ledgerListSortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
 }
 
 // Load ledger list

@@ -78,6 +78,25 @@ async def get_company_details(
     return result
 
 
+@router.get("/ledger/master")
+async def get_ledger_master(
+    company: str = Query("", description="Company name (empty = active company)"),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all ledger master data from Tally with 30 fields
+    
+    Returns all ledgers with:
+    - Basic: guid, name, parent, alias, description, notes
+    - Balance: opening, closing
+    - Contact: mailing_name, address, state, country, pincode, email, mobile
+    - Statutory: pan, gstin, gst_registration_type, gst_supply_type, gst_duty_head, tax_rate
+    - Bank: account_holder, account_number, ifsc, swift, bank_name, branch
+    - Settings: is_revenue, is_deemed_positive, credit_period
+    """
+    result = await tally_service.get_ledger_master(company)
+    return result
+
+
 @router.post("/sync")
 async def trigger_sync(
     company_name: str = Query(..., description="Company name to sync"),

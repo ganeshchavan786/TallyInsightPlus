@@ -119,9 +119,73 @@
             </header>
 
             <div class="content-area">
-            <!-- Ledger Selection Card -->
-            <div class="filters-card">
-                <div class="filter-row ledger-filters">
+            <!-- Main View Tabs -->
+            <div class="report-tabs" id="mainTabs">
+                <button class="report-tab active" data-maintab="ledgerlist" onclick="switchMainTab('ledgerlist')">
+                    <i class="fas fa-list-alt"></i> Ledger List
+                </button>
+                <button class="report-tab" data-maintab="transactions" onclick="switchMainTab('transactions')">
+                    <i class="fas fa-exchange-alt"></i> Transactions
+                </button>
+            </div>
+
+            <!-- Ledger List View -->
+            <div id="ledgerListView">
+                <!-- Sub Tabs for Ledger Categories -->
+                <div class="report-tabs" id="ledgerCategoryTabs" style="margin-bottom: 12px;">
+                    <button class="report-tab active" data-category="all" onclick="switchLedgerCategory('all')">
+                        <i class="fas fa-list"></i> All Ledgers
+                    </button>
+                    <button class="report-tab" data-category="sundry_debtors" onclick="switchLedgerCategory('sundry_debtors')">
+                        <i class="fas fa-user-plus"></i> Sundry Debtors
+                    </button>
+                    <button class="report-tab" data-category="sundry_creditors" onclick="switchLedgerCategory('sundry_creditors')">
+                        <i class="fas fa-user-minus"></i> Sundry Creditors
+                    </button>
+                </div>
+
+                <!-- Search Filter -->
+                <div class="filters-card">
+                    <div class="filter-row" style="grid-template-columns: 1fr;">
+                        <div class="filter-group">
+                            <label><i class="fas fa-search"></i> Search Ledgers</label>
+                            <input type="text" id="ledgerListSearch" class="form-input" placeholder="Search by name, parent, GSTIN, mobile, email..." oninput="filterLedgerList()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ledger List Table -->
+                <div class="table-card">
+                    <div class="table-header">
+                        <h3><i class="fas fa-list-alt"></i> All Ledgers</h3>
+                        <span class="badge" id="ledgerListCount">0 ledgers</span>
+                    </div>
+                    <div class="table-container" style="max-height: 500px; overflow-y: auto;">
+                        <table class="data-table" id="ledgerListTable">
+                            <thead>
+                                <tr>
+                                    <th data-sort="name" style="cursor:pointer">NAME <span class="sort-icon">↕</span></th>
+                                    <th data-sort="parent" style="cursor:pointer">PARENT <span class="sort-icon">↕</span></th>
+                                    <th data-sort="gstin" style="cursor:pointer">GSTIN <span class="sort-icon">↕</span></th>
+                                    <th data-sort="mobile" style="cursor:pointer">MOBILE <span class="sort-icon">↕</span></th>
+                                    <th data-sort="email" style="cursor:pointer">EMAIL <span class="sort-icon">↕</span></th>
+                                    <th class="text-right" data-sort="opening" style="cursor:pointer">OPENING <span class="sort-icon">↕</span></th>
+                                    <th class="text-right" data-sort="closing" style="cursor:pointer">CLOSING <span class="sort-icon">↕</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="ledgerListBody">
+                                <tr><td colspan="7" class="loading-cell">Loading ledgers...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transactions View (Hidden by default) -->
+            <div id="transactionsView" style="display: none;">
+                <!-- Ledger Selection Card -->
+                <div class="filters-card">
+                    <div class="filter-row ledger-filters">
                         <div class="filter-group">
                             <label><i class="fas fa-book"></i> Select Ledger</label>
                             <div class="search-dropdown">
@@ -139,7 +203,6 @@
                         </div>
                     </div>
                 </div>
-            </div>
 
             <!-- Ledger Summary Stats -->
             <div class="stats-grid" id="ledgerStats" style="display: none;">
@@ -208,7 +271,8 @@
                     </table>
                 </div>
             </div>
-            </div>
+            </div><!-- End transactionsView -->
+            </div><!-- End content-area -->
         </main>
     </div>
 

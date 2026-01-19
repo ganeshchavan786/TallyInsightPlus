@@ -605,6 +605,30 @@ class TallyService:
             return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}
         except Exception as e:
             return {"error": str(e)}
+    
+    async def get_ledger_master(
+        self,
+        company: str = "",
+        token: str = None
+    ) -> Dict[str, Any]:
+        """Get all ledger master data from Tally with 30 fields"""
+        try:
+            params = {}
+            if company:
+                params["company"] = company
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:  # 2 min timeout for large data
+                response = await client.get(
+                    f"{self.base_url}/api/sync/ledger/master",
+                    params=params,
+                    headers=self._get_headers(token)
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            return {"error": f"HTTP {e.response.status_code}: {e.response.text}", "total": 0, "ledgers": []}
+        except Exception as e:
+            return {"error": str(e), "total": 0, "ledgers": []}
 
 
 # Singleton instance
