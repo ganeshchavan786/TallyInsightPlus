@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ledger Report - SILICONVEINS PVT LTD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .report-container {
+            background: white;
+            max-width: 1000px;
+            margin: 0 auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .report-header {
+            background: #1e3a5f;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .report-header h1 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .report-header .company {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .ledger-info {
+            background: #2d5a87;
+            color: white;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: #e8ecef;
+        }
+        
+        thead th {
+            padding: 10px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            border-bottom: 2px solid #cbd5e1;
+            color: #1e293b;
+        }
+        
+        thead th.text-right {
+            text-align: right;
+        }
+        
+        thead th.text-center {
+            text-align: center;
+        }
+        
+        tbody tr {
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        
+        tbody tr:hover {
+            background: #f1f5f9;
+        }
+        
+        tbody td {
+            padding: 8px;
+            font-size: 11px;
+        }
+        
+        tbody td.text-right {
+            text-align: right;
+        }
+        
+        tbody td.text-center {
+            text-align: center;
+        }
+        
+        .opening-row {
+            background: #f0f9ff !important;
+            font-weight: 600;
+        }
+        
+        .footer-row {
+            background: #f1f5f9 !important;
+            font-weight: 600;
+            border-top: 2px solid #cbd5e1;
+        }
+        
+        .closing-row {
+            background: #e2e8f0 !important;
+            font-weight: 700;
+        }
+        
+        .amount-debit {
+            color: #166534;
+        }
+        
+        .amount-credit {
+            color: #dc2626;
+        }
+        
+        .export-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .export-btn:hover {
+            background: #059669;
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .report-container {
+                box-shadow: none;
+                max-width: 100%;
+            }
+            
+            .export-btn {
+                display: none !important;
+            }
+            
+            @page {
+                size: A4 landscape;
+                margin: 10mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="report-header">
+            <div>
+                <h1>Ledger Vouchers</h1>
+                <div class="company">Vrushali Infotech Pvt Ltd -21 -25</div>
+            </div>
+            <div style="text-align: right; display: flex; align-items: center; gap: 15px;">
+                <div>1-Apr-21 to 31-Mar-26</div>
+                <button onclick="exportPDF()" class="export-btn">📄 Export PDF</button>
+            </div>
+        </div>
+        
+        <div class="ledger-info">
+            Ledger: SILICONVEINS PVT LTD
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 10%;">Date</th>
+                    <th style="width: 25%;">Particulars</th>
+                    <th style="width: 10%;" class="text-center">Vch Type</th>
+                    <th style="width: 15%;">Vch No.</th>
+                    <th style="width: 12%;" class="text-right">Debit</th>
+                    <th style="width: 12%;" class="text-right">Credit</th>
+                    <th style="width: 16%;" class="text-right">Balance</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- Data will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        // Embedded data from data.json
+        const data = {
+            "ledger_name": "SILICONVEINS PVT LTD",
+            "parent_group": "Sundry Debtors",
+            "company": "Vrushali Infotech Pvt Ltd -21 -25",
+            "opening_balance": 2124.0,
+            "is_deemed_positive": 1,
+            "transactions": [
+                {"date": "2021-11-11", "voucher_type": "Payment", "voucher_number": "545", "amount": -2124.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2023-03-31", "voucher_type": "Journal", "voucher_number": "198", "amount": 963.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2023-07-19", "voucher_type": "Sales", "voucher_number": "VIPL/23-24/118", "amount": -19175.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2024-03-31", "voucher_type": "Journal", "voucher_number": "104", "amount": 18197.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2024-03-31", "voucher_type": "Journal", "voucher_number": "161", "amount": 15.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/019", "amount": -233.64, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/020", "amount": -590.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/021", "amount": -118.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/022", "amount": -177.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/023", "amount": -354.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/024", "amount": -177.0, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/025", "amount": -233.64, "particulars": "SILICONVEINS PVT LTD"},
+                {"date": "2025-05-02", "voucher_type": "Payment", "voucher_number": "131", "amount": -2950.0, "particulars": "SILICONVEINS PVT LTD"}
+            ]
+        };
+        
+        function formatAmount(amount) {
+            if (amount === 0 || amount === null || amount === undefined) return '-';
+            return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            const day = date.getDate().toString().padStart(2, '0');
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const month = months[date.getMonth()];
+            const year = date.getFullYear().toString().slice(-2);
+            return `${day}-${month}-${year}`;
+        }
+        
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const isDeemedPositive = data.is_deemed_positive === 1;
+            let balance = data.opening_balance;
+            let totalDebit = 0;
+            let totalCredit = 0;
+            
+            let html = '';
+            
+            // Opening Balance Row
+            html += `
+                <tr class="opening-row">
+                    <td></td>
+                    <td><strong>Opening Balance</strong></td>
+                    <td></td>
+                    <td></td>
+                    <td class="text-right"></td>
+                    <td class="text-right"></td>
+                    <td class="text-right"><strong>${formatAmount(balance)}</strong></td>
+                </tr>
+            `;
+            
+            // Transaction Rows
+            data.transactions.forEach(txn => {
+                const amount = txn.amount || 0;
+                let debit = 0;
+                let credit = 0;
+                
+                // CORRECT ACCOUNTING LOGIC:
+                // For IsDeemedPositive groups (Sundry Debtors, Assets):
+                //   - Negative amount in DB = Debit (Party Dr)
+                //   - Positive amount in DB = Credit (Party Cr)
+                if (isDeemedPositive) {
+                    if (amount < 0) {
+                        debit = Math.abs(amount);
+                    } else {
+                        credit = amount;
+                    }
+                } else {
+                    // For IsDeemedPositive = 0 (Sundry Creditors, Liabilities):
+                    //   - Positive amount in DB = Credit
+                    //   - Negative amount in DB = Debit
+                    if (amount > 0) {
+                        credit = amount;
+                    } else {
+                        debit = Math.abs(amount);
+                    }
+                }
+                
+                // For Sundry Debtors: Debit decreases balance (we paid), Credit increases (they paid us)
+                // Running Balance = Previous - Debit + Credit
+                balance = balance - debit + credit;
+                totalDebit += debit;
+                totalCredit += credit;
+                
+                html += `
+                    <tr>
+                        <td>${formatDate(txn.date)}</td>
+                        <td>${txn.particulars || '-'}</td>
+                        <td class="text-center">${txn.voucher_type || '-'}</td>
+                        <td>${txn.voucher_number || '-'}</td>
+                        <td class="text-right ${debit > 0 ? 'amount-debit' : ''}">${debit > 0 ? formatAmount(debit) : '-'}</td>
+                        <td class="text-right ${credit > 0 ? 'amount-credit' : ''}">${credit > 0 ? formatAmount(credit) : '-'}</td>
+                        <td class="text-right">${formatAmount(balance)}</td>
+                    </tr>
+                `;
+            });
+            
+            // Current Total Row
+            html += `
+                <tr class="footer-row">
+                    <td colspan="4" style="text-align: right;"><strong>Current Total :</strong></td>
+                    <td class="text-right"><strong>${formatAmount(totalDebit)}</strong></td>
+                    <td class="text-right"><strong>${formatAmount(totalCredit)}</strong></td>
+                    <td class="text-right"></td>
+                </tr>
+            `;
+            
+            // Closing Balance Row
+            // Tally: Closing = Opening + Credit - Debit (from party's perspective)
+            // For Sundry Debtors: Negative = Dr (show in Debit column), Positive = Cr (show in Credit column)
+            const closingBalance = data.opening_balance + totalCredit - totalDebit;
+            const closingInDebit = closingBalance < 0;
+            html += `
+                <tr class="closing-row">
+                    <td colspan="4" style="text-align: right;"><strong>Closing Balance :</strong></td>
+                    <td class="text-right">${closingInDebit ? '<strong>' + formatAmount(Math.abs(closingBalance)) + '</strong>' : ''}</td>
+                    <td class="text-right">${!closingInDebit ? '<strong>' + formatAmount(Math.abs(closingBalance)) + '</strong>' : ''}</td>
+                    <td class="text-right"></td>
+                </tr>
+            `;
+            
+            tbody.innerHTML = html;
+        }
+        
+        // Export PDF function
+        function exportPDF() {
+            window.print();
+        }
+        
+        // Render on page load
+        renderTable();
+    </script>
+</body>
+</html>

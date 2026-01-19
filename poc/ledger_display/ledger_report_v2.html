@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ledger Report - SILICONVEINS PVT LTD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            background: #f5f5f5;
+            padding: 20px;
+            line-height: 1.4;
+        }
+        
+        .report-container {
+            background: white;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .company-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .company-header h1 {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .company-header p {
+            font-size: 11px;
+            margin: 2px 0;
+        }
+        
+        .ledger-header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .ledger-header h2 {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        
+        .ledger-header p {
+            font-size: 11px;
+            margin: 2px 0;
+        }
+        
+        .date-range {
+            text-align: center;
+            margin-bottom: 15px;
+            font-size: 11px;
+        }
+        
+        .page-info {
+            text-align: right;
+            font-size: 10px;
+            margin-bottom: 5px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead th {
+            border-bottom: 1px solid #000;
+            padding: 5px 3px;
+            text-align: left;
+            font-weight: normal;
+            font-size: 11px;
+        }
+        
+        thead th.text-right {
+            text-align: right;
+        }
+        
+        tbody td {
+            padding: 2px 3px;
+            font-size: 11px;
+            vertical-align: top;
+        }
+        
+        tbody td.text-right {
+            text-align: right;
+        }
+        
+        .subtotal-row td {
+            border-top: 1px solid #000;
+            padding-top: 3px;
+        }
+        
+        .closing-row td {
+            font-weight: bold;
+        }
+        
+        .grand-total-row td {
+            border-top: 1px solid #000;
+            border-bottom: 1px solid #000;
+            font-weight: bold;
+        }
+        
+        .export-btn {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            z-index: 100;
+        }
+        
+        .export-btn:hover {
+            background: #059669;
+        }
+        
+        /* Print Styles */
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .report-container {
+                box-shadow: none;
+                max-width: 100%;
+                padding: 20px;
+            }
+            
+            .export-btn {
+                display: none !important;
+            }
+            
+            @page {
+                size: A4 portrait;
+                margin: 15mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button onclick="exportPDF()" class="export-btn">📄 Export PDF</button>
+    
+    <div class="report-container">
+        <div class="company-header">
+            <h1>Vrushali Infotech Pvt Ltd.</h1>
+            <p>Ananda Niwas Shivshankar Colony No.2</p>
+            <p>Chakrpani Road Bhosari</p>
+            <p>CIN: U72200PN2012PTC142974</p>
+            <p>E-Mail : ganesh@vrushaliinfotech.com</p>
+        </div>
+        
+        <div class="ledger-header">
+            <h2>SILICONVEINS PVT LTD</h2>
+            <p>Ledger Account</p>
+            <p>209, V-Star Plaza, Chandavarakar Road,</p>
+            <p>Opp Rajamahal Hotel, Borivali (W),</p>
+            <p>Mumbai-400092</p>
+        </div>
+        
+        <div class="date-range">1-Apr-01 to 31-Mar-26</div>
+        
+        <div class="page-info">Page 1</div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 12%;">Date</th>
+                    <th style="width: 30%;">Particulars</th>
+                    <th style="width: 12%;">Vch Type</th>
+                    <th style="width: 14%;">Vch No.</th>
+                    <th style="width: 16%;" class="text-right">Debit</th>
+                    <th style="width: 16%;" class="text-right">Credit</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- Data will be populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        // Embedded data from data.json
+        const data = {
+            "ledger_name": "SILICONVEINS PVT LTD",
+            "parent_group": "Sundry Debtors",
+            "company": "Vrushali Infotech Pvt Ltd -21 -25",
+            "opening_balance": 2124.0,
+            "is_deemed_positive": 1,
+            "transactions": [
+                {"date": "2021-11-11", "voucher_type": "Payment", "voucher_number": "545", "amount": -2124.0, "particulars": "Cash"},
+                {"date": "2023-03-31", "voucher_type": "Journal", "voucher_number": "198", "amount": 963.0, "particulars": "TDS-22-23"},
+                {"date": "2023-07-19", "voucher_type": "Sales", "voucher_number": "VIPL/23-24/118", "amount": -19175.0, "particulars": "SALES COMMISSION"},
+                {"date": "2024-03-31", "voucher_type": "Journal", "voucher_number": "104", "amount": 18197.0, "particulars": "ADVANCE RECEIVED FROM CUSTOMER"},
+                {"date": "2024-03-31", "voucher_type": "Journal", "voucher_number": "161", "amount": 15.0, "particulars": "TDS-23-24"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/019", "amount": -233.64, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/020", "amount": -590.0, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/021", "amount": -118.0, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/022", "amount": -177.0, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/023", "amount": -354.0, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/024", "amount": -177.0, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-04-14", "voucher_type": "Sales", "voucher_number": "VIPL/25-26/025", "amount": -233.64, "particulars": "SALES COMMISSION FOR BIZ"},
+                {"date": "2025-05-02", "voucher_type": "Payment", "voucher_number": "131", "amount": -2950.0, "particulars": "IndusInd Bank Limited"}
+            ]
+        };
+        
+        function formatAmount(amount) {
+            if (amount === 0 || amount === null || amount === undefined) return '';
+            return amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        
+        function formatDateTally(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const day = date.getDate();
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const month = months[date.getMonth()];
+            const year = date.getFullYear().toString().slice(-2);
+            return `${day}-${month}-${year}`;
+        }
+        
+        function getFinancialYear(dateStr) {
+            const date = new Date(dateStr);
+            const month = date.getMonth(); // 0-11
+            const year = date.getFullYear();
+            // FY starts from April (month 3)
+            if (month >= 3) {
+                return `${year}-${(year + 1).toString().slice(-2)}`;
+            } else {
+                return `${year - 1}-${year.toString().slice(-2)}`;
+            }
+        }
+        
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const isDeemedPositive = data.is_deemed_positive === 1;
+            
+            let html = '';
+            let balance = 0;
+            let yearlyDebit = 0;
+            let yearlyCredit = 0;
+            let currentFY = null;
+            let grandTotalDebit = 0;
+            let grandTotalCredit = 0;
+            
+            // Group transactions by financial year
+            const txnsByYear = {};
+            data.transactions.forEach(txn => {
+                const fy = getFinancialYear(txn.date);
+                if (!txnsByYear[fy]) txnsByYear[fy] = [];
+                txnsByYear[fy].push(txn);
+            });
+            
+            const years = Object.keys(txnsByYear).sort();
+            let openingBalance = data.opening_balance;
+            
+            years.forEach((fy, fyIndex) => {
+                const txns = txnsByYear[fy];
+                const fyStart = fy.split('-')[0];
+                
+                // Opening Balance row for this year
+                html += `
+                    <tr>
+                        <td>1-Apr-${fyStart.slice(-2)} By</td>
+                        <td><strong>Opening Balance</strong></td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-right">${openingBalance > 0 ? '' : formatAmount(Math.abs(openingBalance))}</td>
+                        <td class="text-right">${openingBalance > 0 ? formatAmount(openingBalance) : ''}</td>
+                    </tr>
+                `;
+                
+                balance = openingBalance;
+                yearlyDebit = 0;
+                yearlyCredit = 0;
+                
+                // Transaction rows
+                txns.forEach(txn => {
+                    const amount = txn.amount || 0;
+                    let debit = 0;
+                    let credit = 0;
+                    
+                    // For IsDeemedPositive groups (Sundry Debtors):
+                    // Negative amount in DB = Debit (Party Dr)
+                    // Positive amount in DB = Credit (Party Cr)
+                    if (isDeemedPositive) {
+                        if (amount < 0) {
+                            debit = Math.abs(amount);
+                        } else {
+                            credit = amount;
+                        }
+                    } else {
+                        if (amount > 0) {
+                            credit = amount;
+                        } else {
+                            debit = Math.abs(amount);
+                        }
+                    }
+                    
+                    // Running balance: Previous - Debit + Credit
+                    balance = balance - debit + credit;
+                    yearlyDebit += debit;
+                    yearlyCredit += credit;
+                    grandTotalDebit += debit;
+                    grandTotalCredit += credit;
+                    
+                    // By/To prefix: Debit = To, Credit = By
+                    const prefix = debit > 0 ? 'To' : 'By';
+                    
+                    html += `
+                        <tr>
+                            <td>${formatDateTally(txn.date)} ${prefix}</td>
+                            <td>${txn.particulars || '-'}</td>
+                            <td>${txn.voucher_type || '-'}</td>
+                            <td>${txn.voucher_number || '-'}</td>
+                            <td class="text-right">${debit > 0 ? formatAmount(debit) : ''}</td>
+                            <td class="text-right">${credit > 0 ? formatAmount(credit) : ''}</td>
+                        </tr>
+                    `;
+                });
+                
+                // Yearly subtotal row
+                html += `
+                    <tr class="subtotal-row">
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-right">${formatAmount(yearlyDebit)}</td>
+                        <td class="text-right">${formatAmount(yearlyCredit)}</td>
+                    </tr>
+                `;
+                
+                // Closing Balance for this year
+                const closingBalance = balance;
+                const closingInDebit = closingBalance < 0;
+                html += `
+                    <tr class="closing-row">
+                        <td>To</td>
+                        <td><strong>Closing Balance</strong></td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-right">${closingInDebit ? formatAmount(Math.abs(closingBalance)) : ''}</td>
+                        <td class="text-right">${!closingInDebit ? formatAmount(closingBalance) : ''}</td>
+                    </tr>
+                `;
+                
+                // Yearly total row
+                const yearTotalDebit = yearlyDebit + (closingInDebit ? Math.abs(closingBalance) : 0) + (openingBalance < 0 ? 0 : 0);
+                const yearTotalCredit = yearlyCredit + (!closingInDebit ? closingBalance : 0) + (openingBalance > 0 ? openingBalance : 0);
+                html += `
+                    <tr class="subtotal-row">
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td></td>
+                        <td class="text-right">${formatAmount(yearlyDebit + (openingBalance < 0 ? Math.abs(openingBalance) : 0) + (closingInDebit ? Math.abs(closingBalance) : 0))}</td>
+                        <td class="text-right">${formatAmount(yearlyCredit + (openingBalance > 0 ? openingBalance : 0) + (!closingInDebit ? closingBalance : 0))}</td>
+                    </tr>
+                `;
+                
+                // Set opening for next year
+                openingBalance = closingBalance;
+            });
+            
+            // Grand total row
+            const finalClosing = balance;
+            const finalClosingInDebit = finalClosing < 0;
+            html += `
+                <tr class="grand-total-row">
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                    <td class="text-right">${formatAmount(grandTotalDebit + (finalClosingInDebit ? Math.abs(finalClosing) : 0))}</td>
+                    <td class="text-right">${formatAmount(grandTotalCredit + data.opening_balance + (!finalClosingInDebit ? finalClosing : 0))}</td>
+                </tr>
+            `;
+            
+            tbody.innerHTML = html;
+        }
+        
+        function exportPDF() {
+            window.print();
+        }
+        
+        renderTable();
+    </script>
+</body>
+</html>

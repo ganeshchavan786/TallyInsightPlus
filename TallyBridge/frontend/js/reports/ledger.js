@@ -494,10 +494,16 @@ function renderTransactionsTable(tbody) {
         </tr>
     `;
     
+    let totalDebit = 0;
+    let totalCredit = 0;
+    
     ledgerTransactions.forEach(txn => {
         const debit = parseFloat(txn.debit) || 0;
         const credit = parseFloat(txn.credit) || 0;
-        balance = balance + debit - credit;
+        // Running Balance: Previous - Debit + Credit (for Sundry Debtors)
+        balance = balance - debit + credit;
+        totalDebit += debit;
+        totalCredit += credit;
         
         html += `
             <tr>
@@ -511,6 +517,25 @@ function renderTransactionsTable(tbody) {
             </tr>
         `;
     });
+    
+    // Footer rows - Current Total and Closing Balance
+    const closingBalance = openingBalance - totalDebit + totalCredit;
+    const closingInDebit = closingBalance < 0;
+    
+    html += `
+        <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1;">
+            <td colspan="4" style="text-align: right; padding: 10px 16px;"><strong>Current Total :</strong></td>
+            <td class="text-right" style="padding: 10px 16px;"><strong>${formatAmount(totalDebit)}</strong></td>
+            <td class="text-right" style="padding: 10px 16px;"><strong>${formatAmount(totalCredit)}</strong></td>
+            <td class="text-right"></td>
+        </tr>
+        <tr style="background: #e2e8f0;">
+            <td colspan="4" style="text-align: right; padding: 10px 16px;"><strong>Closing Balance :</strong></td>
+            <td class="text-right" style="padding: 10px 16px;">${closingInDebit ? '<strong>' + formatAmount(Math.abs(closingBalance)) + '</strong>' : ''}</td>
+            <td class="text-right" style="padding: 10px 16px;">${!closingInDebit ? '<strong>' + formatAmount(Math.abs(closingBalance)) + '</strong>' : ''}</td>
+            <td class="text-right"></td>
+        </tr>
+    `;
     
     tbody.innerHTML = html;
     document.getElementById('recordCount').textContent = `${ledgerTransactions.length} entries`;
