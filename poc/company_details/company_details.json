@@ -1,0 +1,44 @@
+{
+  "basic": {
+    "name": "Vrushali Infotech Pvt Ltd. 25-26",
+    "mailing_name": "Indian Rupees",
+    "guid": "8fdcfdd1-71cc-4873-99c6-95735225388e",
+    "alter_id": "102214"
+  },
+  "contact": {
+    "email": "ganesh@vrushaliinfotech.com",
+    "telephone": "",
+    "mobile": "7040469030/31,9921640630",
+    "fax": "",
+    "website": "www.vrushaliinfotech.com"
+  },
+  "address": {
+    "full_address": "Ananda Niwas Shivshankar Colony No.2",
+    "state": "Maharashtra",
+    "pincode": "411039",
+    "country": "India"
+  },
+  "statutory": {
+    "gstin": "",
+    "pan": "AAECV1138M",
+    "tan": "",
+    "cin": ""
+  },
+  "financial_year": {
+    "starting_from": "1-Apr-25",
+    "books_from": "1-Apr-25"
+  },
+  "currency": {
+    "symbol": "",
+    "name": "",
+    "decimal_places": "2",
+    "suffix_symbol": "",
+    "add_space": "",
+    "show_in_millions": "",
+    "amount_word": "",
+    "decimal_word": ""
+  },
+  "settings": {
+    "maintain_inventory": "Yes"
+  }
+}

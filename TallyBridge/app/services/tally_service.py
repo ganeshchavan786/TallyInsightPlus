@@ -581,6 +581,30 @@ class TallyService:
             return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}
         except Exception as e:
             return {"error": str(e)}
+    
+    async def get_company_details(
+        self,
+        company: str = "",
+        token: str = None
+    ) -> Dict[str, Any]:
+        """Get complete company details from Tally including contact, address, statutory info"""
+        try:
+            params = {}
+            if company:
+                params["company"] = company
+            
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.base_url}/api/sync/company/details",
+                    params=params,
+                    headers=self._get_headers(token)
+                )
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            return {"error": f"HTTP {e.response.status_code}: {e.response.text}"}
+        except Exception as e:
+            return {"error": str(e)}
 
 
 # Singleton instance

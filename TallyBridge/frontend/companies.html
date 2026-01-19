@@ -5,6 +5,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#4f46e5">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <link rel="manifest" href="manifest.json">
   <title>Companies - VanillaNext</title>
   <link rel="stylesheet" href="css/main.css">
@@ -42,13 +45,13 @@
         <a href="dashboard.html" class="sidebar-link"><span class="sidebar-icon">📊</span> Dashboard</a>
         <div class="text-xs font-bold text-muted uppercase px-4 mt-4 mb-2">Management</div>
         <a href="users.html" class="sidebar-link admin-only"><span class="sidebar-icon">👥</span> Users</a>
+        <a href="audit.html" class="sidebar-link admin-only"><span class="sidebar-icon">🛡️</span> Audit Logs</a>
         <a href="tally-sync.html" class="sidebar-link"><span class="sidebar-icon">🔄</span> Tally Sync</a>
+        <a href="reports/vouchers.html" class="sidebar-link"><span class="sidebar-icon">📋</span> Reports</a>
         <a href="companies.html" class="sidebar-link active super-admin-only"><span class="sidebar-icon">🏢</span>
           Companies</a>
         <a href="permissions.html" class="sidebar-link super-admin-only"><span class="sidebar-icon">🗝️</span>
           Permissions</a>
-
-        <a href="audit.html" class="sidebar-link admin-only"><span class="sidebar-icon">🛡️</span> Audit Logs</a>
         <div class="text-xs font-bold text-muted uppercase px-4 mt-4 mb-2">Settings</div>
         <a href="profile.html" class="sidebar-link"><span class="sidebar-icon">👤</span> Profile</a>
         <a href="#" onclick="Auth.logout()" class="sidebar-link text-danger mt-auto mb-4"><span
@@ -121,6 +124,20 @@
     </div>
   </div>
 
+  <!-- Company Details Modal -->
+  <div class="modal" id="modal-company-details" style="max-width: 700px;">
+    <div class="modal-header">
+      <h2 class="modal-title">Company Details</h2>
+      <button class="modal-close" onclick="Modal.close('modal-company-details')">&times;</button>
+    </div>
+    <div class="modal-body" id="company-details-content">
+      <div class="text-center p-4">Loading...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="Modal.close('modal-company-details')">Close</button>
+    </div>
+  </div>
+
   <div id="toast-container" class="toast-container"></div>
 
   <script>window.VanillaNext = window.VanillaNext || {};</script>
@@ -163,10 +180,11 @@
           {
             key: 'actions', label: 'Actions', render: (v, row) => `
                         <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-primary" onclick="viewCompanyDetails('${row.name}')" title="View Details">👁️</button>
                         <button class="btn btn-sm btn-secondary" onclick="editCompany(${row.id})">✏️</button>
                         <button class="btn btn-sm btn-danger super-admin-only" onclick="deleteCompany(${row.id})">🗑️</button>
                         </div>
-                    `}
+                    `},
         ],
         perPage: 10,
         searchable: true,
@@ -239,6 +257,82 @@
         loadCompanies();
       } catch (error) {
         Toast.error(error.detail || 'Failed to save company');
+      }
+    }
+
+    async function viewCompanyDetails(companyName) {
+      Modal.open('modal-company-details');
+      document.getElementById('company-details-content').innerHTML = '<div class="text-center p-4">Loading...</div>';
+      
+      try {
+        const token = Auth.getToken();
+        const response = await fetch(`/api/v1/tally/company/details?company=${encodeURIComponent(companyName)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        
+        if (data.error) {
+          document.getElementById('company-details-content').innerHTML = `<div class="text-danger p-4">${data.error}</div>`;
+          return;
+        }
+        
+        const html = `
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <div class="card p-4">
+              <h4 style="font-weight: 600; margin-bottom: 12px; color: #4f46e5;">Basic Info</h4>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <div><strong>Name:</strong> ${data.basic?.name || '-'}</div>
+                <div><strong>GUID:</strong> <span style="font-size: 11px;">${data.basic?.guid || '-'}</span></div>
+                <div><strong>Alter ID:</strong> ${data.basic?.alter_id || '-'}</div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <h4 style="font-weight: 600; margin-bottom: 12px; color: #4f46e5;">Contact</h4>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <div><strong>Email:</strong> ${data.contact?.email || '-'}</div>
+                <div><strong>Mobile:</strong> ${data.contact?.mobile || '-'}</div>
+                <div><strong>Telephone:</strong> ${data.contact?.telephone || '-'}</div>
+                <div><strong>Website:</strong> ${data.contact?.website || '-'}</div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <h4 style="font-weight: 600; margin-bottom: 12px; color: #4f46e5;">Address</h4>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <div><strong>Address:</strong> ${data.address?.full_address || '-'}</div>
+                <div><strong>State:</strong> ${data.address?.state || '-'}</div>
+                <div><strong>Country:</strong> ${data.address?.country || '-'}</div>
+                <div><strong>Pincode:</strong> ${data.address?.pincode || '-'}</div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <h4 style="font-weight: 600; margin-bottom: 12px; color: #4f46e5;">Statutory</h4>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <div><strong>GSTIN:</strong> ${data.statutory?.gstin || '-'}</div>
+                <div><strong>PAN:</strong> ${data.statutory?.pan || '-'}</div>
+                <div><strong>TAN:</strong> ${data.statutory?.tan || '-'}</div>
+                <div><strong>CIN:</strong> ${data.statutory?.cin || '-'}</div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <h4 style="font-weight: 600; margin-bottom: 12px; color: #4f46e5;">Financial Year</h4>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <div><strong>Starting From:</strong> ${data.financial_year?.starting_from || '-'}</div>
+                <div><strong>Books From:</strong> ${data.financial_year?.books_from || '-'}</div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <h4 style="font-weight: 600; margin-bottom: 12px; color: #4f46e5;">Settings</h4>
+              <div style="font-size: 14px; line-height: 1.8;">
+                <div><strong>Currency:</strong> ${data.currency?.symbol || ''} ${data.currency?.name || '-'}</div>
+                <div><strong>Decimal Places:</strong> ${data.currency?.decimal_places || '-'}</div>
+                <div><strong>Maintain Inventory:</strong> ${data.settings?.maintain_inventory || '-'}</div>
+              </div>
+            </div>
+          </div>
+        `;
+        document.getElementById('company-details-content').innerHTML = html;
+      } catch (error) {
+        document.getElementById('company-details-content').innerHTML = `<div class="text-danger p-4">Failed to load: ${error.message}</div>`;
       }
     }
 

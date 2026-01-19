@@ -68,6 +68,16 @@ async def get_synced_companies(
     return result
 
 
+@router.get("/company/details")
+async def get_company_details(
+    company: str = Query("", description="Company name (empty = active company)"),
+    current_user: User = Depends(get_current_user)
+):
+    """Get complete company details from Tally including contact, address, statutory info"""
+    result = await tally_service.get_company_details(company)
+    return result
+
+
 @router.post("/sync")
 async def trigger_sync(
     company_name: str = Query(..., description="Company name to sync"),
