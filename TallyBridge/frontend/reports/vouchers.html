@@ -48,8 +48,8 @@
         .table-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--gray-200); }
         .table-header h3 { font-size: 0.9rem; font-weight: 600; }
         .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--gray-100); font-size: 0.85rem; }
-        .data-table th { background: var(--gray-50); font-weight: 600; font-size: 0.75rem; color: var(--gray-600); text-transform: uppercase; }
+        .data-table th, .data-table td { padding: 8px 16px; text-align: left; border-bottom: 1px solid var(--gray-100); font-size: 0.75rem; }
+        .data-table th { background: var(--gray-50); font-weight: 600; font-size: 0.65rem; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em; }
         .data-table tbody tr:hover { background: var(--gray-50); }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
@@ -235,12 +235,12 @@
                     <table class="data-table" id="vouchersTable">
                         <thead>
                             <tr>
-                                <th data-sort="date">Date <i class="fas fa-sort"></i></th>
-                                <th data-sort="voucher_type">Type <i class="fas fa-sort"></i></th>
-                                <th data-sort="voucher_number">Voucher No.</th>
-                                <th data-sort="party_name">Party Name <i class="fas fa-sort"></i></th>
-                                <th class="text-right" data-sort="amount">Amount <i class="fas fa-sort"></i></th>
-                                <th class="text-center">Actions</th>
+                                <th data-sort="date" style="cursor:pointer">DATE <span class="sort-icon">↕</span></th>
+                                <th data-sort="voucher_type" style="cursor:pointer">TYPE <span class="sort-icon">↕</span></th>
+                                <th>VOUCHER NO.</th>
+                                <th data-sort="party_name" style="cursor:pointer">PARTY NAME <span class="sort-icon">↕</span></th>
+                                <th class="text-right" data-sort="amount" style="cursor:pointer">AMOUNT <span class="sort-icon">↕</span></th>
+                                <th class="text-center">ACTIONS</th>
                             </tr>
                         </thead>
                         <tbody id="vouchersTableBody">

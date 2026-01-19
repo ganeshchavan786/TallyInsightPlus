@@ -50,8 +50,8 @@
         .table-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--gray-200); }
         .table-header h3 { font-size: 0.9rem; font-weight: 600; }
         .data-table { width: 100%; border-collapse: collapse; }
-        .data-table th, .data-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--gray-100); font-size: 0.85rem; }
-        .data-table th { background: var(--gray-50); font-weight: 600; font-size: 0.75rem; color: var(--gray-600); text-transform: uppercase; }
+        .data-table th, .data-table td { padding: 8px 16px; text-align: left; border-bottom: 1px solid var(--gray-100); font-size: 0.75rem; }
+        .data-table th { background: var(--gray-50); font-weight: 600; font-size: 0.65rem; color: var(--gray-600); text-transform: uppercase; letter-spacing: 0.05em; }
         .data-table tbody tr:hover { background: var(--gray-50); }
         .text-right { text-align: right; }
         .badge { background: var(--gray-100); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
@@ -193,13 +193,13 @@
                     <table class="data-table" id="ledgerTable">
                         <thead id="tableHead">
                             <tr>
-                                <th>Date</th>
-                                <th>Particulars</th>
-                                <th>Voucher Type</th>
-                                <th>Voucher No.</th>
-                                <th class="text-right">Debit</th>
-                                <th class="text-right">Credit</th>
-                                <th class="text-right">Balance</th>
+                                <th data-sort="date" style="cursor:pointer">DATE <span class="sort-icon">↕</span></th>
+                                <th data-sort="particulars" style="cursor:pointer">PARTICULARS <span class="sort-icon">↕</span></th>
+                                <th data-sort="voucher_type" style="cursor:pointer">VOUCHER TYPE <span class="sort-icon">↕</span></th>
+                                <th>VOUCHER NO.</th>
+                                <th class="text-right" data-sort="debit" style="cursor:pointer">DEBIT <span class="sort-icon">↕</span></th>
+                                <th class="text-right" data-sort="credit" style="cursor:pointer">CREDIT <span class="sort-icon">↕</span></th>
+                                <th class="text-right">BALANCE</th>
                             </tr>
                         </thead>
                         <tbody id="tableBody">

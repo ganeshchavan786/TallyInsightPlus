@@ -43,7 +43,16 @@ async function loadCompanies() {
                 select.appendChild(option);
             });
             
-            selectedCompany = companies[0].company_name || companies[0].name;
+            // Use saved company from localStorage, or fallback to first company
+            const savedCompany = localStorage.getItem('selectedReportCompany');
+            const companyNames = companies.map(c => c.company_name || c.name);
+            
+            if (savedCompany && companyNames.includes(savedCompany)) {
+                selectedCompany = savedCompany;
+            } else {
+                selectedCompany = companies[0].company_name || companies[0].name;
+            }
+            
             select.value = selectedCompany;
             if (footer) footer.textContent = selectedCompany;
             
@@ -64,6 +73,12 @@ async function loadCompanies() {
 function changeCompany() {
     const select = document.getElementById('companySelect');
     selectedCompany = select.value;
+    
+    // Save to localStorage for persistence across page refresh
+    if (selectedCompany) {
+        localStorage.setItem('selectedReportCompany', selectedCompany);
+    }
+    
     const footer = document.getElementById('currentCompany');
     if (footer) footer.textContent = selectedCompany || 'All Companies';
     

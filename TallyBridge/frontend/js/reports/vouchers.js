@@ -69,9 +69,24 @@ function setupEventListeners() {
                 sortColumn = column;
                 sortDirection = 'asc';
             }
+            updateSortIcons();
             sortVouchers();
             renderVouchers();
         });
+    });
+}
+
+// Update sort icons to show current sort state
+function updateSortIcons() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        const icon = th.querySelector('.sort-icon');
+        if (!icon) return;
+        
+        if (th.dataset.sort === sortColumn) {
+            icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            icon.textContent = '↕';
+        }
     });
 }
 

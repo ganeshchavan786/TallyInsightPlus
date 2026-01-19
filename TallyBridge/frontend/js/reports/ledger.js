@@ -5,6 +5,8 @@
 let selectedLedger = '';
 let ledgerTransactions = [];
 let currentTab = 'transactions';
+let sortColumn = 'date';
+let sortDirection = 'desc';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -178,27 +180,30 @@ function updateTableForTab() {
     if (currentTab === 'transactions') {
         thead.innerHTML = `
             <tr>
-                <th>Date</th>
-                <th>Particulars</th>
-                <th>Voucher Type</th>
-                <th>Voucher No.</th>
-                <th class="text-right">Debit</th>
-                <th class="text-right">Credit</th>
-                <th class="text-right">Balance</th>
+                <th data-sort="date" style="cursor:pointer">DATE <span class="sort-icon">↕</span></th>
+                <th data-sort="particulars" style="cursor:pointer">PARTICULARS <span class="sort-icon">↕</span></th>
+                <th data-sort="voucher_type" style="cursor:pointer">VOUCHER TYPE <span class="sort-icon">↕</span></th>
+                <th>VOUCHER NO.</th>
+                <th class="text-right" data-sort="debit" style="cursor:pointer">DEBIT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="credit" style="cursor:pointer">CREDIT <span class="sort-icon">↕</span></th>
+                <th class="text-right">BALANCE</th>
             </tr>
         `;
     } else {
         thead.innerHTML = `
             <tr>
-                <th>Bill No</th>
-                <th>Bill Date</th>
-                <th class="text-right">Bill Amount</th>
-                <th class="text-right">Paid Amount</th>
-                <th class="text-right">Pending</th>
-                <th class="text-right">Overdue Days</th>
+                <th data-sort="bill_name" style="cursor:pointer">BILL NO <span class="sort-icon">↕</span></th>
+                <th data-sort="bill_date" style="cursor:pointer">BILL DATE <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="bill_amount" style="cursor:pointer">BILL AMOUNT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="paid_amount" style="cursor:pointer">PAID AMOUNT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="pending" style="cursor:pointer">PENDING <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="overdue_days" style="cursor:pointer">OVERDUE DAYS <span class="sort-icon">↕</span></th>
             </tr>
         `;
     }
+    
+    // Re-attach sorting event listeners after header update
+    setupSorting();
 }
 
 // Render ledger table
@@ -355,5 +360,69 @@ function refreshData() {
         loadLedgerList();
     }
 }
+
+// Setup sorting event listeners
+function setupSorting() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.dataset.sort;
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            sortTransactions();
+            renderTransactionsTable(document.getElementById('tableBody'));
+        });
+    });
+}
+
+// Update sort icons
+function updateSortIcons() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        const icon = th.querySelector('.sort-icon');
+        if (!icon) return;
+        
+        if (th.dataset.sort === sortColumn) {
+            icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            icon.textContent = '↕';
+        }
+    });
+}
+
+// Sort transactions
+function sortTransactions() {
+    ledgerTransactions.sort((a, b) => {
+        let aVal = a[sortColumn];
+        let bVal = b[sortColumn];
+        
+        if (sortColumn === 'date') {
+            aVal = new Date(aVal);
+            bVal = new Date(bVal);
+        }
+        
+        if (sortColumn === 'debit' || sortColumn === 'credit') {
+            aVal = parseFloat(aVal) || 0;
+            bVal = parseFloat(bVal) || 0;
+        }
+        
+        if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = bVal?.toLowerCase() || '';
+        }
+        
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// Initialize sorting on page load
+document.addEventListener('DOMContentLoaded', () => {
+    setupSorting();
+});
 
 console.log('TallyBridge Reports - Ledger JS loaded');

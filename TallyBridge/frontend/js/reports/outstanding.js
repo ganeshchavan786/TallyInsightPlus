@@ -7,6 +7,8 @@ let currentReport = 'ledgerwise';
 let outstandingData = [];
 let currentPage = 1;
 let pageSize = 50;
+let sortColumn = 'closing';
+let sortDirection = 'desc';
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -222,26 +224,61 @@ function updateTableHeader() {
     
     switch (currentReport) {
         case 'ledger':
-            headerHtml = `<tr><th>Party Name</th><th class="text-right">Opening</th><th class="text-right">Debit</th><th class="text-right">Credit</th><th class="text-right">Closing</th></tr>`;
+            headerHtml = `<tr>
+                <th data-sort="party_name" style="cursor:pointer">PARTY NAME <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="opening" style="cursor:pointer">OPENING <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="debit" style="cursor:pointer">DEBIT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="credit" style="cursor:pointer">CREDIT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="closing" style="cursor:pointer">CLOSING <span class="sort-icon">↕</span></th>
+            </tr>`;
             document.getElementById('tableTitle').textContent = 'Outstanding Summary';
             break;
         case 'billwise':
-            headerHtml = `<tr><th>Party Name</th><th>Bill No</th><th>Bill Date</th><th>Due Date</th><th class="text-right">Bill Amt</th><th class="text-right">Paid</th><th class="text-right">Pending</th><th class="text-right">Overdue</th></tr>`;
+            headerHtml = `<tr>
+                <th data-sort="party_name" style="cursor:pointer">PARTY NAME <span class="sort-icon">↕</span></th>
+                <th data-sort="bill_no" style="cursor:pointer">BILL NO <span class="sort-icon">↕</span></th>
+                <th data-sort="bill_date" style="cursor:pointer">BILL DATE <span class="sort-icon">↕</span></th>
+                <th data-sort="due_date" style="cursor:pointer">DUE DATE <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="bill_amount" style="cursor:pointer">BILL AMT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="paid" style="cursor:pointer">PAID <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="pending" style="cursor:pointer">PENDING <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="overdue" style="cursor:pointer">OVERDUE <span class="sort-icon">↕</span></th>
+            </tr>`;
             document.getElementById('tableTitle').textContent = 'Bill-wise Outstanding';
             showFoot = false;
             showPagination = true;
             break;
         case 'ledgerwise':
-            headerHtml = `<tr><th>Party / Bill</th><th>Bill Date</th><th>Due Date</th><th class="text-right">Pending</th><th class="text-right">Overdue</th><th>Source</th></tr>`;
+            headerHtml = `<tr>
+                <th data-sort="party_name" style="cursor:pointer">PARTY / BILL <span class="sort-icon">↕</span></th>
+                <th data-sort="bill_date" style="cursor:pointer">BILL DATE <span class="sort-icon">↕</span></th>
+                <th data-sort="due_date" style="cursor:pointer">DUE DATE <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="pending" style="cursor:pointer">PENDING <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="overdue" style="cursor:pointer">OVERDUE <span class="sort-icon">↕</span></th>
+                <th>SOURCE</th>
+            </tr>`;
             document.getElementById('tableTitle').textContent = 'Ledger-wise Outstanding';
             showFoot = false;
             break;
         case 'ageing':
-            headerHtml = `<tr><th>Party Name</th><th class="text-right">0-30 Days</th><th class="text-right">30-60 Days</th><th class="text-right">60-90 Days</th><th class="text-right">90+ Days</th><th class="text-right">Total</th></tr>`;
+            headerHtml = `<tr>
+                <th data-sort="party_name" style="cursor:pointer">PARTY NAME <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="days_0_30" style="cursor:pointer">0-30 DAYS <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="days_30_60" style="cursor:pointer">30-60 DAYS <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="days_60_90" style="cursor:pointer">60-90 DAYS <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="days_90_plus" style="cursor:pointer">90+ DAYS <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="total" style="cursor:pointer">TOTAL <span class="sort-icon">↕</span></th>
+            </tr>`;
             document.getElementById('tableTitle').textContent = 'Ageing Analysis';
             break;
         case 'group':
-            headerHtml = `<tr><th>Group</th><th class="text-right">Parties</th><th class="text-right">Opening</th><th class="text-right">Transactions</th><th class="text-right">Closing</th></tr>`;
+            headerHtml = `<tr>
+                <th data-sort="group_name" style="cursor:pointer">GROUP <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="parties" style="cursor:pointer">PARTIES <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="opening" style="cursor:pointer">OPENING <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="transactions" style="cursor:pointer">TRANSACTIONS <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="closing" style="cursor:pointer">CLOSING <span class="sort-icon">↕</span></th>
+            </tr>`;
             document.getElementById('tableTitle').textContent = 'Group Outstanding';
             showFoot = false;
             break;
@@ -250,6 +287,9 @@ function updateTableHeader() {
     thead.innerHTML = headerHtml;
     tfoot.style.display = showFoot ? '' : 'none';
     paginationContainer.style.display = showPagination ? '' : 'none';
+    
+    // Re-attach sorting event listeners after header update
+    setupSorting();
 }
 
 // Render ledger summary table
@@ -475,5 +515,76 @@ function filterTable() {
 function refreshData() {
     loadOutstandingData();
 }
+
+// Setup sorting event listeners
+function setupSorting() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const column = th.dataset.sort;
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            updateSortIcons();
+            sortData();
+            renderCurrentReport();
+        });
+    });
+}
+
+// Update sort icons
+function updateSortIcons() {
+    document.querySelectorAll('.data-table th[data-sort]').forEach(th => {
+        const icon = th.querySelector('.sort-icon');
+        if (!icon) return;
+        
+        if (th.dataset.sort === sortColumn) {
+            icon.textContent = sortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            icon.textContent = '↕';
+        }
+    });
+}
+
+// Sort data
+function sortData() {
+    outstandingData.sort((a, b) => {
+        let aVal = a[sortColumn];
+        let bVal = b[sortColumn];
+        
+        if (['opening', 'debit', 'credit', 'closing', 'amount'].includes(sortColumn)) {
+            aVal = parseFloat(aVal) || 0;
+            bVal = parseFloat(bVal) || 0;
+        }
+        
+        if (typeof aVal === 'string') {
+            aVal = aVal.toLowerCase();
+            bVal = bVal?.toLowerCase() || '';
+        }
+        
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// Render current report after sort
+function renderCurrentReport() {
+    const tbody = document.getElementById('tableBody');
+    if (currentReport === 'ledgerwise') {
+        renderLedgerwiseTable(tbody, outstandingData);
+    } else if (currentReport === 'billwise') {
+        renderBillwiseTable(tbody, outstandingData);
+    } else if (currentReport === 'ageing') {
+        renderAgeingTable(tbody, outstandingData);
+    }
+}
+
+// Initialize sorting on page load
+document.addEventListener('DOMContentLoaded', () => {
+    setupSorting();
+});
 
 console.log('TallyBridge Reports - Outstanding JS loaded');
