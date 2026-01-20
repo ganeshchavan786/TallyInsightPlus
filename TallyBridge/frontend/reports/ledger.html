@@ -1,4 +1,22 @@
 <!DOCTYPE html>
+<!--
+============================================================
+DEVELOPER NOTE: LEDGER REPORT CLOSING BALANCE FORMULA
+============================================================
+Closing = Opening - Debit + Credit
+
+For Sundry Debtors (IsDeemedPositive=1):
+  - Debit = Receipt (पैसे मिळाले) → balance कमी होतो
+  - Credit = Sales → balance वाढतो
+
+Example: Opening=2124, Debit=2124, Credit=0 → Closing=0
+
+DO NOT CHANGE THIS FORMULA in:
+  - ledger_controller.py (API)
+  - ledger.js (Frontend Table)
+  - pdf_service.py (PDF Export)
+============================================================
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">

@@ -5,6 +5,10 @@
 let selectedLedger = '';
 let ledgerTransactions = [];
 let currentTab = 'transactions';
+// API response totals - DO NOT calculate in frontend, use these values
+let apiTotalDebit = 0;
+let apiTotalCredit = 0;
+let apiClosingBalance = 0;
 let sortColumn = 'date';
 let sortDirection = 'desc';
 let currentMainTab = 'ledgerlist';
@@ -453,6 +457,11 @@ async function loadLedgerTransactions() {
 function updateLedgerStats(response) {
     const summary = response.summary || response;
     
+    // Store API totals for table footer - DO NOT recalculate in frontend
+    apiTotalDebit = parseFloat(summary.total_debit) || 0;
+    apiTotalCredit = parseFloat(summary.total_credit) || 0;
+    apiClosingBalance = parseFloat(summary.closing_balance) || 0;
+    
     document.getElementById('ledgerOpening').textContent = formatCurrency(summary.opening_balance || 0);
     document.getElementById('ledgerDebit').textContent = formatCurrency(summary.total_debit || 0);
     document.getElementById('ledgerCredit').textContent = formatCurrency(summary.total_credit || 0);
@@ -564,21 +573,25 @@ function renderTransactionsTable(tbody) {
         `;
     });
     
-    // Footer rows - Current Total and Closing Balance
-    const closingBalance = openingBalance - totalDebit + totalCredit;
-    const closingInDebit = closingBalance < 0;
+    // ============================================================
+    // DEVELOPER NOTE: USE API RESPONSE VALUES - DO NOT CALCULATE IN FRONTEND
+    // API provides correct totals: apiTotalDebit, apiTotalCredit, apiClosingBalance
+    // These are set in updateLedgerStats() from API response
+    // Closing = Opening - Debit + Credit (calculated by API)
+    // ============================================================
+    const closingInDebit = apiClosingBalance < 0;
     
     html += `
         <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1;">
             <td colspan="4" style="text-align: right; padding: 10px 16px;"><strong>Current Total :</strong></td>
-            <td class="text-right" style="padding: 10px 16px;"><strong>${formatAmount(totalDebit)}</strong></td>
-            <td class="text-right" style="padding: 10px 16px;"><strong>${formatAmount(totalCredit)}</strong></td>
+            <td class="text-right" style="padding: 10px 16px;"><strong>${formatAmount(apiTotalDebit)}</strong></td>
+            <td class="text-right" style="padding: 10px 16px;"><strong>${formatAmount(apiTotalCredit)}</strong></td>
             <td class="text-right"></td>
         </tr>
         <tr style="background: #e2e8f0;">
             <td colspan="4" style="text-align: right; padding: 10px 16px;"><strong>Closing Balance :</strong></td>
-            <td class="text-right" style="padding: 10px 16px;">${closingInDebit ? '<strong>' + formatAmount(Math.abs(closingBalance)) + '</strong>' : ''}</td>
-            <td class="text-right" style="padding: 10px 16px;">${!closingInDebit ? '<strong>' + formatAmount(Math.abs(closingBalance)) + '</strong>' : ''}</td>
+            <td class="text-right" style="padding: 10px 16px;">${closingInDebit ? '<strong>' + formatAmount(Math.abs(apiClosingBalance)) + '</strong>' : ''}</td>
+            <td class="text-right" style="padding: 10px 16px;">${!closingInDebit ? '<strong>' + formatAmount(Math.abs(apiClosingBalance)) + '</strong>' : ''}</td>
             <td class="text-right"></td>
         </tr>
     `;
