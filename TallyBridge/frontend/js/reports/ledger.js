@@ -363,8 +363,54 @@ async function selectLedger(ledgerName) {
     document.getElementById('ledgerStats').style.display = 'grid';
     document.getElementById('ledgerTabs').style.display = 'flex';
     document.getElementById('tableTitle').textContent = ledgerName;
+    // PDF button is now always visible
     
     await loadLedgerTransactions();
+}
+
+// Export Ledger PDF
+async function exportLedgerPDF() {
+    if (!selectedLedger) {
+        alert('Please select a ledger first');
+        return;
+    }
+    
+    const fromDate = document.getElementById('fromDate').value;
+    const toDate = document.getElementById('toDate').value;
+    
+    const params = new URLSearchParams();
+    params.append('ledger', selectedLedger);
+    params.append('company', selectedCompany);
+    if (fromDate) params.append('from_date', fromDate);
+    if (toDate) params.append('to_date', toDate);
+    
+    try {
+        // Fetch PDF with authentication
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/v1/tally/ledger-report/pdf?${params}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        // Create blob and download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Ledger_${selectedLedger.replace(/\s+/g, '_')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    } catch (error) {
+        console.error('PDF export failed:', error);
+        alert('Failed to export PDF: ' + error.message);
+    }
 }
 
 // Reload ledger if selected

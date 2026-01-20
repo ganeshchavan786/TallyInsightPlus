@@ -629,6 +629,46 @@ class TallyService:
             return {"error": f"HTTP {e.response.status_code}: {e.response.text}", "total": 0, "ledgers": []}
         except Exception as e:
             return {"error": str(e), "total": 0, "ledgers": []}
+    
+    async def get_ledger_report_pdf(
+        self,
+        ledger: str,
+        company: str = None,
+        from_date: str = None,
+        to_date: str = None,
+        token: str = None
+    ):
+        """Get Ledger Report PDF from TallyInsight"""
+        from fastapi.responses import Response
+        try:
+            params = {"ledger": ledger}
+            if company:
+                params["company"] = company
+            if from_date:
+                params["from_date"] = from_date
+            if to_date:
+                params["to_date"] = to_date
+            
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/api/data/ledger-report/pdf",
+                    params=params,
+                    headers=self._get_headers(token)
+                )
+                response.raise_for_status()
+                
+                # Return PDF response
+                return Response(
+                    content=response.content,
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": response.headers.get("Content-Disposition", "attachment; filename=ledger_report.pdf")}
+                )
+        except httpx.HTTPStatusError as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 # Singleton instance
