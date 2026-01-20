@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tally FastAPI Database Loader</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-dark: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .navbar {
+            background: var(--bg-card);
+            padding: 0.5rem 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+        
+        .navbar-brand i { color: var(--primary); font-size: 1.1rem; }
+        
+        .navbar-status {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        
+        .status-badge.online { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-badge.offline { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .status-badge .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0.75rem;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .grid-2 { grid-template-columns: repeat(2, 1fr); }
+        .grid-3 { grid-template-columns: repeat(3, 1fr); }
+        .grid-4 { grid-template-columns: repeat(4, 1fr); }
+        
+        @media (max-width: 1200px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 768px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+        
+        .card {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px -1px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .card-title {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card-icon {
+            width: 28px; height: 28px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+        
+        .card-icon.blue { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .card-icon.green { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .card-icon.yellow { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .card-icon.red { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        
+        .card-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 0.15rem;
+        }
+        
+        .card-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        
+        .sync-card { grid-column: span 2; }
+        @media (max-width: 768px) { .sync-card { grid-column: span 1; } }
+        
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        .btn-success:hover:not(:disabled) { background: #059669; }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        .btn-danger:hover:not(:disabled) { background: #dc2626; }
+        
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+        .btn-outline:hover:not(:disabled) { background: var(--bg-card-hover); }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .progress-container {
+            margin: 0.75rem 0;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 0.7rem;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--success));
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+        
+        .sync-info {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--border);
+        }
+        
+        .sync-info-item {
+            text-align: center;
+        }
+        
+        .sync-info-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .sync-info-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        
+        .table-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 6px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .table-item {
+            background: var(--bg-dark);
+            padding: 6px 8px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            border: 1px solid var(--border);
+        }
+        
+        .table-name {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .table-count {
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        .table-count.zero { color: var(--text-muted); }
+        
+        .log-viewer {
+            background: var(--bg-dark);
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+        }
+        
+        .log-entry {
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .log-entry:hover { background: var(--bg-card); }
+        
+        .log-time { color: var(--text-muted); min-width: 80px; }
+        .log-level { min-width: 60px; font-weight: 500; }
+        .log-level.info { color: var(--primary); }
+        .log-level.warning { color: var(--warning); }
+        .log-level.error { color: var(--danger); }
+        .log-level.debug { color: var(--text-muted); }
+        .log-message { color: var(--text-secondary); }
+        
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .toast {
+            background: var(--bg-card);
+            padding: 12px 20px;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            min-width: 300px;
+        }
+        
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        .toast.warning { border-left-color: var(--warning); }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <i class="fas fa-database"></i>
+            <span>Tally FastAPI Database Loader</span>
+        </div>
+        <div class="navbar-status">
+            <select class="company-switch" id="company-switch" onchange="switchCompany(this.value)">
+                <option value="">All Companies</option>
+            </select>
+            <button class="btn btn-outline btn-sm" onclick="showCompanyScreen()" title="Select Companies">
+                <i class="fas fa-building"></i>
+            </button>
+            <div class="status-badge" id="tally-status">
+                <span class="dot"></span>
+                <span>Tally: Checking...</span>
+            </div>
+            <div class="status-badge" id="db-status">
+                <span class="dot"></span>
+                <span>Database: Checking...</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Company Selection Screen -->
+    <div class="company-selection-screen" id="company-screen">
+        <div class="company-card">
+            <div class="company-header">
+                <i class="fas fa-building"></i>
+                <h2>Select Companies to Sync</h2>
+                <p>Choose one or more companies from Tally</p>
+            </div>
+            <div class="company-list" id="company-list">
+                <div class="loading-companies">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>Loading companies from Tally...</span>
+                </div>
+            </div>
+            <div class="date-range-section">
+                <div class="date-range-header">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Date Range (Optional)</span>
+                </div>
+                <div class="date-range-inputs">
+                    <div class="date-input">
+                        <label>From:</label>
+                        <input type="date" id="sync-from-date" value="2025-04-01">
+                    </div>
+                    <div class="date-input">
+                        <label>To:</label>
+                        <input type="date" id="sync-to-date" value="2026-03-31">
+                    </div>
+                </div>
+            </div>
+            <div class="company-actions">
+                <button class="btn btn-primary" onclick="syncSelectedCompanies('full')" id="btn-sync-selected">
+                    <i class="fas fa-sync"></i> Full Sync Selected
+                </button>
+                <button class="btn btn-success" onclick="syncSelectedCompanies('incremental')">
+                    <i class="fas fa-bolt"></i> Incremental Sync
+                </button>
+                <button class="btn btn-outline" onclick="skipCompanySelection()">
+                    <i class="fas fa-forward"></i> Skip to Dashboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="main-dashboard" style="display: none;">
+        <!-- Stats Cards -->
+        <div class="grid grid-4">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Total Records</span>
+                    <div class="card-icon blue"><i class="fas fa-layer-group"></i></div>
+                </div>
+                <div class="card-value" id="total-records">0</div>
+                <div class="card-label">Across all tables</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Master Tables</span>
+                    <div class="card-icon green"><i class="fas fa-table"></i></div>
+                </div>
+                <div class="card-value" id="master-count">0</div>
+                <div class="card-label">19 tables</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Transaction Tables</span>
+                    <div class="card-icon yellow"><i class="fas fa-exchange-alt"></i></div>
+                </div>
+                <div class="card-value" id="transaction-count">0</div>
+                <div class="card-label">13 tables</div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Last Sync</span>
+                    <div class="card-icon red"><i class="fas fa-clock"></i></div>
+                </div>
+                <div class="card-value" id="last-sync-time">--:--</div>
+                <div class="card-label" id="last-sync-date">Never</div>
+            </div>
+        </div>
+
+        <!-- Sync Control -->
+        <div class="grid grid-2">
+            <div class="card sync-card">
+                <div class="card-header">
+                    <span class="card-title">Sync Control</span>
+                    <span class="status-badge" id="sync-status-badge">
+                        <span class="dot"></span>
+                        <span id="sync-status-text">Idle</span>
+                    </span>
+                </div>
+                
+                <div class="btn-group">
+                    <button class="btn btn-primary" id="btn-full-sync" onclick="startFullSync()">
+                        <i class="fas fa-sync"></i> Full Sync
+                    </button>
+                    <button class="btn btn-success" id="btn-incremental-sync" onclick="startIncrementalSync()">
+                        <i class="fas fa-bolt"></i> Incremental Sync
+                    </button>
+                    <button class="btn btn-danger" id="btn-cancel" onclick="cancelSync()" disabled>
+                        <i class="fas fa-stop"></i> Cancel
+                    </button>
+                    <button class="btn btn-outline" onclick="refreshAll()">
+                        <i class="fas fa-redo"></i> Refresh
+                    </button>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span id="current-table">Ready to sync</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div class="sync-info">
+                    <div class="sync-info-item">
+                        <div class="sync-info-value" id="rows-processed">0</div>
+                        <div class="sync-info-label">Rows Processed</div>
+                    </div>
+                    <div class="sync-info-item">
+                        <div class="sync-info-value" id="sync-duration">0s</div>
+                        <div class="sync-info-label">Duration</div>
+                    </div>
+                    <div class="sync-info-item">
+                        <div class="sync-info-value" id="sync-speed">0</div>
+                        <div class="sync-info-label">Rows/sec</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabbed Features Section -->
+        <div class="card tabs-card">
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="switchTab('logs')">
+                    <i class="fas fa-scroll"></i> Logs
+                </button>
+                <button class="tab-btn" onclick="switchTab('history')">
+                    <i class="fas fa-history"></i> History
+                </button>
+                <button class="tab-btn" onclick="switchTab('backup')">
+                    <i class="fas fa-archive"></i> Backup
+                </button>
+                <button class="tab-btn" onclick="switchTab('schedule')">
+                    <i class="fas fa-clock"></i> Schedule
+                </button>
+                <button class="tab-btn" onclick="switchTab('tables')">
+                    <i class="fas fa-database"></i> Tables
+                </button>
+            </div>
+
+            <!-- Tab: Logs -->
+            <div class="tab-content active" id="tab-logs">
+                <div class="tab-header">
+                    <span class="card-title">Recent Logs</span>
+                    <button class="btn btn-outline" onclick="clearLogs()" style="padding: 4px 8px; font-size: 0.75rem;">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+                <div class="log-viewer" id="log-viewer">
+                    <div class="empty-state">
+                        <i class="fas fa-scroll"></i>
+                        <p>No logs yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Sync History -->
+            <div class="tab-content" id="tab-history">
+                <div class="tab-header">
+                    <span class="card-title">Sync History</span>
+                    <button class="btn btn-outline" onclick="fetchSyncHistory()" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="fas fa-refresh"></i> Refresh
+                    </button>
+                </div>
+                <div class="history-list" id="sync-history">
+                    <div class="empty-state">
+                        <i class="fas fa-history"></i>
+                        <p>No sync history yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Backup Management -->
+            <div class="tab-content" id="tab-backup">
+                <div class="tab-header">
+                    <span class="card-title">Backup Management</span>
+                    <button class="btn btn-outline" onclick="createManualBackup()" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="fas fa-plus"></i> Create Backup
+                    </button>
+                </div>
+                <div class="backup-list" id="backup-list">
+                    <div class="empty-state">
+                        <i class="fas fa-archive"></i>
+                        <p>No backups yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Schedule -->
+            <div class="tab-content" id="tab-schedule">
+                <div class="tab-header">
+                    <span class="card-title">Auto Sync & Backup Schedule</span>
+                    <span class="status-badge" id="schedule-status-badge">
+                        <span class="dot"></span>
+                        <span id="schedule-status-text">Disabled</span>
+                    </span>
+                </div>
+                <div class="schedule-form">
+                    <div class="schedule-section">
+                        <h4 style="margin: 0 0 10px 0; color: var(--primary);"><i class="fas fa-sync"></i> Auto Sync</h4>
+                        <div class="schedule-row">
+                            <label class="schedule-toggle">
+                                <input type="checkbox" id="schedule-enabled" onchange="updateSchedule()">
+                                <span>Enable</span>
+                            </label>
+                        </div>
+                        <div class="schedule-row">
+                            <label>Interval:</label>
+                            <select id="schedule-interval" onchange="updateSchedule()">
+                                <option value="5min">Every 5 Minutes</option>
+                                <option value="15min">Every 15 Minutes</option>
+                                <option value="30min">Every 30 Minutes</option>
+                                <option value="1hour" selected>Every 1 Hour</option>
+                                <option value="daily">Daily (at time)</option>
+                            </select>
+                        </div>
+                        <div class="schedule-row" id="sync-time-row">
+                            <label>Time:</label>
+                            <input type="time" id="schedule-time" value="06:00" onchange="updateSchedule()">
+                        </div>
+                        <div class="schedule-row">
+                            <label>Type:</label>
+                            <select id="schedule-type" onchange="updateSchedule()">
+                                <option value="incremental">Incremental</option>
+                                <option value="full">Full Sync</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="schedule-section" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border);">
+                        <h4 style="margin: 0 0 10px 0; color: var(--success);"><i class="fas fa-archive"></i> Auto Backup</h4>
+                        <div class="schedule-row">
+                            <label class="schedule-toggle">
+                                <input type="checkbox" id="backup-schedule-enabled" onchange="updateSchedule()">
+                                <span>Enable</span>
+                            </label>
+                        </div>
+                        <div class="schedule-row">
+                            <label>Interval:</label>
+                            <select id="backup-interval" onchange="updateSchedule()">
+                                <option value="1hour">Every 1 Hour</option>
+                                <option value="6hour">Every 6 Hours</option>
+                                <option value="daily" selected>Daily</option>
+                            </select>
+                        </div>
+                        <div class="schedule-row" id="backup-time-row">
+                            <label>Time:</label>
+                            <input type="time" id="backup-time" value="23:00" onchange="updateSchedule()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Tables -->
+            <div class="tab-content" id="tab-tables">
+                <div class="tab-header">
+                    <span class="card-title">Database Tables</span>
+                    <span id="tables-summary" style="color: var(--text-muted); font-size: 0.85rem;">32 tables</span>
+                </div>
+                <div class="table-grid" id="table-grid">
+                    <div class="empty-state">
+                        <i class="fas fa-database"></i>
+                        <p>Loading tables...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Incomplete Sync Warning Modal -->
+    <div class="modal-overlay" id="incomplete-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <i class="fas fa-exclamation-circle" style="color: var(--danger); font-size: 2rem;"></i>
+                <h3>⚠️ Incomplete Sync Detected</h3>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--warning); font-weight: 600; margin-bottom: 10px;">
+                    मागील sync अपूर्ण राहिला आहे!
+                </p>
+                <p style="margin-bottom: 10px;">
+                    App बंद पडल्यामुळे किंवा crash झाल्यामुळे sync पूर्ण झाला नाही.
+                </p>
+                <div id="incomplete-details" style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.85rem;">
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                    <i class="fas fa-info-circle"></i> 
+                    Data inconsistent असू शकतो. Fresh Full Sync करणे recommended आहे.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="dismissIncomplete()">
+                    <i class="fas fa-times"></i> Dismiss
+                </button>
+                <button class="btn btn-primary" onclick="dismissIncomplete(); startFullSync();">
+                    <i class="fas fa-sync"></i> Run Full Sync
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="confirm-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-header">
+                <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 2rem;"></i>
+                <h3>⚠️ Full Sync Warning</h3>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--danger); font-weight: 600; margin-bottom: 10px;">
+                    सगळा existing data DELETE होईल!
+                </p>
+                <p id="modal-record-count" style="margin-bottom: 15px;">
+                    Currently <strong>0</strong> records in database
+                </p>
+                <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                    <p style="font-size: 0.85rem; color: var(--text-secondary);">
+                        <i class="fas fa-info-circle"></i> 
+                        Daily updates साठी <strong>Incremental Sync</strong> वापरा.<br>
+                        Full Sync फक्त first time किंवा reset साठी.
+                    </p>
+                </div>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="backup-checkbox" checked>
+                    <span>Sync आधी backup घ्या</span>
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal()">
+                    <i class="fas fa-times"></i> Cancel
+                </button>
+                <button class="btn btn-danger" onclick="confirmFullSync()">
+                    <i class="fas fa-trash"></i> Delete & Sync
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .modal {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 450px;
+            width: 90%;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+        .modal-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h3 {
+            margin-top: 10px;
+            color: var(--warning);
+        }
+        .modal-body {
+            margin-bottom: 20px;
+        }
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .modal input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+        }
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-dark);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+        }
+        .history-item:hover { background: var(--bg-card-hover); }
+        .history-info { flex: 1; }
+        .history-type {
+            font-weight: 600;
+            text-transform: capitalize;
+            margin-bottom: 4px;
+        }
+        .history-type.full { color: var(--primary); }
+        .history-type.incremental { color: var(--success); }
+        .history-meta {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .history-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .history-status.completed { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .history-status.failed { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .history-status.running { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .history-status.cancelled { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        
+        /* Backup List Styles */
+        .backup-list { max-height: 250px; overflow-y: auto; }
+        .backup-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: var(--bg-dark);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border);
+        }
+        .backup-item:hover { background: var(--bg-card-hover); }
+        .backup-info { flex: 1; }
+        .backup-name { font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+        .backup-meta { font-size: 0.8rem; color: var(--text-muted); }
+        .backup-actions { display: flex; gap: 8px; }
+        .btn-restore {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .btn-restore:hover { opacity: 0.9; }
+        
+        /* Schedule Form Styles */
+        .schedule-form { padding: 10px 0; }
+        .schedule-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .schedule-row label { min-width: 80px; color: var(--text-secondary); }
+        .schedule-row select, .schedule-row input[type="time"] {
+            padding: 8px 12px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        .schedule-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+        .schedule-toggle input { width: 18px; height: 18px; accent-color: var(--primary); }
+        .day-selector {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .day-selector label {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: var(--bg-dark);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            min-width: auto;
+        }
+        .day-selector input { width: 14px; height: 14px; accent-color: var(--primary); }
+        
+        /* Tabs Styles */
+        .tabs-card { padding: 0; }
+        .tabs-header {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-dark);
+            border-radius: 8px 8px 0 0;
+            overflow-x: auto;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 8px 10px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { color: var(--text-primary); background: var(--bg-card-hover); }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background: var(--bg-card);
+        }
+        .tab-content {
+            display: none;
+            padding: 10px;
+        }
+        .tab-content.active { display: block; }
+        .tab-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        /* Company Selection Screen */
+        .company-selection-screen {
+            min-height: calc(100vh - 50px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .company-card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 600px;
+            width: 100%;
+            border: 1px solid var(--border);
+        }
+        .company-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .company-header i {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+        .company-header h2 {
+            font-size: 1.25rem;
+            margin: 0.5rem 0;
+        }
+        .company-header p {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        .company-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+        .company-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--bg-dark);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .company-item:hover {
+            background: var(--bg-card-hover);
+        }
+        .company-item.selected {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid var(--primary);
+        }
+        .company-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+        }
+        .company-item .company-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .company-item .company-name {
+            font-size: 0.85rem;
+        }
+        .company-item .company-period {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .synced-badge {
+            font-size: 0.65rem;
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .not-synced-badge {
+            font-size: 0.65rem;
+            color: var(--warning);
+        }
+        .company-item.synced {
+            border-left: 3px solid var(--success);
+        }
+        .edit-date-btn {
+            cursor: pointer;
+            color: var(--primary);
+            font-size: 0.65rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .edit-date-btn:hover {
+            opacity: 1;
+        }
+        .company-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .loading-companies {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+        }
+        .loading-companies i {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        .company-switch {
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            max-width: 150px;
+        }
+        .btn-sm { padding: 4px 8px; font-size: 0.7rem; }
+        .date-range-section {
+            background: var(--bg-dark);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .date-range-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .date-range-inputs {
+            display: flex;
+            gap: 12px;
+        }
+        .date-input {
+            flex: 1;
+        }
+        .date-input label {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .date-input input {
+            width: 100%;
+            padding: 6px 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-size: 0.8rem;
+        }
+        .history-list, .backup-list, .log-viewer { max-height: 180px; overflow-y: auto; }
+        .history-item, .backup-item { padding: 8px; margin-bottom: 6px; font-size: 0.75rem; }
+        .history-meta, .backup-meta { font-size: 0.65rem; }
+        .log-entry { padding: 4px 8px; font-size: 0.7rem; }
+        .schedule-form { font-size: 0.75rem; }
+        .schedule-row { margin-bottom: 8px; gap: 8px; }
+        .schedule-row label { min-width: 60px; font-size: 0.7rem; }
+        .schedule-row select, .schedule-row input[type="time"] { padding: 4px 8px; font-size: 0.75rem; }
+    </style>
+
+    <script>
+        const API_BASE = '';
+        let syncStartTime = null;
+        let syncInterval = null;
+        let logs = [];
+        let openCompanies = [];
+
+        // ============== Company Selection ==============
+        let syncedCompanies = [];
+        
+        async function loadOpenCompanies() {
+            try {
+                // Load open companies from Tally
+                const res = await fetch(`${API_BASE}/api/companies`);
+                const data = await res.json();
+                openCompanies = data.companies || [];
+                
+                // Load already synced companies from database
+                try {
+                    const syncedRes = await fetch(`${API_BASE}/api/synced-companies`);
+                    const syncedData = await syncedRes.json();
+                    syncedCompanies = syncedData.synced_companies || [];
+                } catch (e) {
+                    syncedCompanies = [];
+                }
+                
+                renderCompanyList();
+            } catch (e) {
+                document.getElementById('company-list').innerHTML = `
+                    <div class="loading-companies" style="color: var(--danger);">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Failed to load companies. Is Tally running?</span>
+                    </div>
+                `;
+            }
+        }
+        
+        function isCompanySynced(companyName) {
+            return syncedCompanies.includes(companyName);
+        }
+
+        function renderCompanyList() {
+            const container = document.getElementById('company-list');
+            if (openCompanies.length === 0) {
+                container.innerHTML = `
+                    <div class="loading-companies">
+                        <i class="fas fa-building"></i>
+                        <span>No companies open in Tally</span>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = openCompanies.map((c, i) => {
+                const isSynced = isCompanySynced(c.name);
+                return `
+                <div class="company-item ${isSynced ? 'synced' : ''}" onclick="toggleCompanySelection(${i})">
+                    <input type="checkbox" id="company-${i}" ${i === 0 ? 'checked' : ''}>
+                    <div class="company-info">
+                        <div class="company-name">${c.name}</div>
+                        ${isSynced ? '<span class="synced-badge"><i class="fas fa-check-circle"></i> Synced</span>' : '<span class="not-synced-badge">Not Synced</span>'}
+                    </div>
+                    <div class="company-period">
+                        <span>${formatDateDisplay(c.books_from)} - ${formatDateDisplay(c.books_to)}</span>
+                        <i class="fas fa-pencil-alt edit-date-btn" onclick="event.stopPropagation(); editCompanyDate(${i})" title="Edit Date Range"></i>
+                    </div>
+                </div>
+            `}).join('');
+            
+            // Select first company by default and set its date range
+            if (openCompanies.length > 0) {
+                document.querySelector('.company-item').classList.add('selected');
+                setDateRangeFromCompany(0);
+            }
+            
+            // Update company switch dropdown
+            updateCompanySwitch();
+        }
+
+        // Format date for display (convert 2021-04-01 to 01-Apr-2021)
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return '';
+            try {
+                // If already in YYYY-MM-DD format
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [year, month, day] = dateStr.split('-');
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return `${day}-${months[parseInt(month)-1]}-${year}`;
+                }
+                return dateStr;
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // Set date range inputs from selected company
+        function setDateRangeFromCompany(index) {
+            const company = openCompanies[index];
+            if (company) {
+                if (company.books_from) {
+                    document.getElementById('sync-from-date').value = company.books_from;
+                }
+                if (company.books_to) {
+                    document.getElementById('sync-to-date').value = company.books_to;
+                }
+            }
+        }
+
+        // Edit company date - opens date inputs for editing
+        function editCompanyDate(index) {
+            setDateRangeFromCompany(index);
+            // Scroll to date range section
+            document.querySelector('.date-range-section').scrollIntoView({ behavior: 'smooth' });
+            document.getElementById('sync-from-date').focus();
+        }
+
+        function toggleCompanySelection(index) {
+            const checkbox = document.getElementById(`company-${index}`);
+            checkbox.checked = !checkbox.checked;
+            const item = checkbox.closest('.company-item');
+            item.classList.toggle('selected', checkbox.checked);
+            
+            // Update date range when company is selected
+            if (checkbox.checked) {
+                setDateRangeFromCompany(index);
+            }
+        }
+
+        function getSelectedCompanies() {
+            const selected = [];
+            openCompanies.forEach((c, i) => {
+                const checkbox = document.getElementById(`company-${i}`);
+                if (checkbox && checkbox.checked) {
+                    selected.push(c.name);
+                }
+            });
+            return selected;
+        }
+
+        async function syncSelectedCompanies(syncType) {
+            const companies = getSelectedCompanies();
+            if (companies.length === 0) {
+                showToast('Please select at least one company', 'error');
+                return;
+            }
+            
+            // Update date range if changed
+            const fromDate = document.getElementById('sync-from-date').value;
+            const toDate = document.getElementById('sync-to-date').value;
+            if (fromDate && toDate) {
+                await fetch(`${API_BASE}/api/config/date-range`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ from_date: fromDate, to_date: toDate })
+                });
+            }
+            
+            // Add to queue
+            await fetch(`${API_BASE}/api/sync/queue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companies, sync_type: syncType })
+            });
+            
+            // Start queue processing
+            await fetch(`${API_BASE}/api/sync/queue/start`, { method: 'POST' });
+            
+            // Show dashboard
+            showDashboard();
+            showToast(`Started ${syncType} sync for ${companies.length} company(s)`, 'success');
+        }
+
+        function skipCompanySelection() {
+            showDashboard();
+        }
+
+        function showDashboard() {
+            document.getElementById('company-screen').style.display = 'none';
+            document.getElementById('main-dashboard').style.display = 'block';
+            refreshAll();
+        }
+
+        function showCompanyScreen() {
+            document.getElementById('company-screen').style.display = 'flex';
+            document.getElementById('main-dashboard').style.display = 'none';
+            loadOpenCompanies();
+        }
+
+        let currentCompany = '';
+        
+        function updateCompanySwitch() {
+            const select = document.getElementById('company-switch');
+            select.innerHTML = '<option value="">All Companies</option>';
+            openCompanies.forEach(c => {
+                select.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+            });
+            select.value = currentCompany;
+        }
+
+        function switchCompany(companyName) {
+            currentCompany = companyName;
+            // Refresh data for selected company
+            fetchTableCounts();
+            addLog('INFO', `Switched to: ${companyName || 'All Companies'}`);
+        }
+
+        // Tab Switching
+        function switchTab(tabName) {
+            // Remove active from all tabs and contents
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active to selected tab
+            document.querySelector(`.tab-btn[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // Toast Notifications
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        // Health Check
+        async function fetchHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/api/health`);
+                const data = await res.json();
+                
+                const tallyEl = document.getElementById('tally-status');
+                const dbEl = document.getElementById('db-status');
+                
+                const tallyOk = data.components?.tally?.status === 'healthy';
+                const dbOk = data.components?.database?.status === 'healthy';
+                
+                tallyEl.className = `status-badge ${tallyOk ? 'online' : 'offline'}`;
+                tallyEl.innerHTML = `<span class="dot"></span><span>Tally: ${tallyOk ? 'Connected' : 'Disconnected'}</span>`;
+                
+                dbEl.className = `status-badge ${dbOk ? 'online' : 'offline'}`;
+                dbEl.innerHTML = `<span class="dot"></span><span>Database: ${dbOk ? 'Connected' : 'Disconnected'}</span>`;
+            } catch (e) {
+                console.error('Health check failed:', e);
+            }
+        }
+
+        // Sync Status
+        async function fetchSyncStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/api/sync/status`);
+                const data = await res.json();
+                
+                const status = data.status || 'idle';
+                const progress = data.progress || 0;
+                const currentTable = data.current_table || '-';
+                const rowsProcessed = data.rows_processed || 0;
+                
+                // Update UI
+                document.getElementById('sync-status-text').textContent = status.charAt(0).toUpperCase() + status.slice(1);
+                document.getElementById('progress-percent').textContent = `${progress}%`;
+                document.getElementById('progress-fill').style.width = `${progress}%`;
+                document.getElementById('current-table').textContent = status === 'running' ? `Syncing: ${currentTable}` : 'Ready to sync';
+                document.getElementById('rows-processed').textContent = rowsProcessed.toLocaleString();
+                
+                // Status badge color
+                const badge = document.getElementById('sync-status-badge');
+                badge.className = 'status-badge ' + (status === 'running' ? 'online' : status === 'completed' ? 'online' : status === 'failed' ? 'offline' : '');
+                
+                // Button states
+                const isRunning = status === 'running';
+                document.getElementById('btn-full-sync').disabled = isRunning;
+                document.getElementById('btn-incremental-sync').disabled = isRunning;
+                document.getElementById('btn-cancel').disabled = !isRunning;
+                
+                // Duration calculation
+                if (data.started_at) {
+                    const start = new Date(data.started_at);
+                    const end = data.completed_at ? new Date(data.completed_at) : new Date();
+                    const duration = Math.round((end - start) / 1000);
+                    document.getElementById('sync-duration').textContent = `${duration}s`;
+                    
+                    if (duration > 0 && rowsProcessed > 0) {
+                        document.getElementById('sync-speed').textContent = Math.round(rowsProcessed / duration);
+                    }
+                }
+                
+                // Last sync time
+                if (data.completed_at) {
+                    const completed = new Date(data.completed_at);
+                    document.getElementById('last-sync-time').textContent = completed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    document.getElementById('last-sync-date').textContent = completed.toLocaleDateString();
+                }
+                
+                // Handle completion
+                if (status === 'completed' && syncInterval) {
+                    clearInterval(syncInterval);
+                    syncInterval = null;
+                    showToast(`Sync completed! ${rowsProcessed.toLocaleString()} rows processed.`, 'success');
+                    fetchTableCounts();
+                } else if (status === 'failed' && syncInterval) {
+                    clearInterval(syncInterval);
+                    syncInterval = null;
+                    showToast(`Sync failed: ${data.error_message || 'Unknown error'}`, 'error');
+                }
+                
+            } catch (e) {
+                console.error('Error fetching sync status:', e);
+            }
+        }
+
+        // Total records for modal
+        let totalRecords = 0;
+
+        // Show Full Sync confirmation modal
+        function startFullSync() {
+            // Update modal with current record count
+            document.getElementById('modal-record-count').innerHTML = 
+                `Currently <strong>${totalRecords.toLocaleString()}</strong> records in database`;
+            document.getElementById('confirm-modal').style.display = 'flex';
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('confirm-modal').style.display = 'none';
+        }
+
+        // Confirm and start Full Sync
+        async function confirmFullSync() {
+            closeModal();
+            const doBackup = document.getElementById('backup-checkbox').checked;
+            
+            try {
+                // Create backup if checkbox is checked
+                if (doBackup && totalRecords > 0) {
+                    showToast('Creating backup...', 'info');
+                    addLog('INFO', 'Creating backup before full sync');
+                    await fetch(`${API_BASE}/api/backup`, { method: 'POST' });
+                }
+                
+                await fetch(`${API_BASE}/api/sync/full`, { method: 'POST' });
+                showToast('Full sync started', 'info');
+                syncStartTime = new Date();
+                syncInterval = setInterval(fetchSyncStatus, 1000);
+                fetchSyncStatus();
+                addLog('INFO', 'Full sync started');
+            } catch (e) {
+                showToast('Failed to start sync', 'error');
+            }
+        }
+
+        // Start Incremental Sync
+        async function startIncrementalSync() {
+            try {
+                await fetch(`${API_BASE}/api/sync/incremental`, { method: 'POST' });
+                showToast('Incremental sync started', 'info');
+                syncStartTime = new Date();
+                syncInterval = setInterval(fetchSyncStatus, 1000);
+                fetchSyncStatus();
+                addLog('INFO', 'Incremental sync started');
+            } catch (e) {
+                showToast('Failed to start sync', 'error');
+            }
+        }
+
+        // Cancel Sync
+        async function cancelSync() {
+            try {
+                await fetch(`${API_BASE}/api/sync/cancel`, { method: 'POST' });
+                showToast('Sync cancelled', 'warning');
+                addLog('WARNING', 'Sync cancelled by user');
+            } catch (e) {
+                showToast('Failed to cancel sync', 'error');
+            }
+        }
+
+        // Table Counts
+        async function fetchTableCounts() {
+            try {
+                const res = await fetch(`${API_BASE}/api/data/counts`);
+                const data = await res.json();
+                
+                const grid = document.getElementById('table-grid');
+                let html = '';
+                let total = 0;
+                let masterTotal = 0;
+                let transactionTotal = 0;
+                
+                const masterTables = ['mst_group', 'mst_ledger', 'mst_vouchertype', 'mst_uom', 'mst_godown', 
+                    'mst_stock_category', 'mst_stock_group', 'mst_stock_item', 'mst_cost_category', 
+                    'mst_cost_centre', 'mst_attendance_type', 'mst_employee', 'mst_payhead',
+                    'mst_gst_effective_rate', 'mst_opening_batch_allocation', 'mst_opening_bill_allocation',
+                    'mst_stockitem_standard_cost', 'mst_stockitem_standard_price', 'trn_closingstock_ledger'];
+                
+                for (const [table, count] of Object.entries(data)) {
+                    total += count;
+                    if (masterTables.includes(table)) {
+                        masterTotal += count;
+                    } else {
+                        transactionTotal += count;
+                    }
+                    
+                    html += `
+                        <div class="table-item">
+                            <span class="table-name">${table}</span>
+                            <span class="table-count ${count === 0 ? 'zero' : ''}">${count.toLocaleString()}</span>
+                        </div>
+                    `;
+                }
+                
+                grid.innerHTML = html || '<div class="empty-state"><i class="fas fa-database"></i><p>No tables found</p></div>';
+                
+                document.getElementById('total-records').textContent = total.toLocaleString();
+                document.getElementById('master-count').textContent = masterTotal.toLocaleString();
+                document.getElementById('transaction-count').textContent = transactionTotal.toLocaleString();
+                document.getElementById('tables-summary').textContent = `${Object.keys(data).length} tables • ${total.toLocaleString()} total rows`;
+                
+                // Update totalRecords for modal warning
+                totalRecords = total;
+                
+            } catch (e) {
+                console.error('Error fetching table counts:', e);
+            }
+        }
+
+        // Logs
+        function addLog(level, message) {
+            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            logs.unshift({ time, level, message });
+            if (logs.length > 100) logs.pop();
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const viewer = document.getElementById('log-viewer');
+            if (logs.length === 0) {
+                viewer.innerHTML = '<div class="empty-state"><i class="fas fa-scroll"></i><p>No logs yet</p></div>';
+                return;
+            }
+            
+            viewer.innerHTML = logs.map(log => `
+                <div class="log-entry">
+                    <span class="log-time">${log.time}</span>
+                    <span class="log-level ${log.level.toLowerCase()}">${log.level}</span>
+                    <span class="log-message">${log.message}</span>
+                </div>
+            `).join('');
+        }
+
+        function clearLogs() {
+            logs = [];
+            renderLogs();
+            showToast('Logs cleared', 'info');
+        }
+
+        // Fetch Sync History
+        async function fetchSyncHistory() {
+            try {
+                const res = await fetch(`${API_BASE}/api/sync/history?limit=20`);
+                const data = await res.json();
+                
+                const container = document.getElementById('sync-history');
+                if (!data.history || data.history.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i class="fas fa-history"></i><p>No sync history yet</p></div>';
+                    return;
+                }
+                
+                container.innerHTML = data.history.map(item => {
+                    const startDate = new Date(item.started_at);
+                    const dateStr = startDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                    const timeStr = startDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+                    
+                    return `
+                        <div class="history-item">
+                            <div class="history-info">
+                                <div class="history-type ${item.sync_type}">${item.sync_type} Sync</div>
+                                <div class="history-meta">
+                                    <i class="fas fa-calendar"></i> ${dateStr} ${timeStr} • 
+                                    <i class="fas fa-database"></i> ${item.rows_processed.toLocaleString()} rows • 
+                                    <i class="fas fa-clock"></i> ${item.duration_seconds}s
+                                </div>
+                            </div>
+                            <span class="history-status ${item.status}">${item.status}</span>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('Error fetching sync history:', e);
+            }
+        }
+
+        // Fetch Backups
+        async function fetchBackups() {
+            try {
+                const res = await fetch(`${API_BASE}/api/backups`);
+                const data = await res.json();
+                
+                const container = document.getElementById('backup-list');
+                if (!data.backups || data.backups.length === 0) {
+                    container.innerHTML = '<div class="empty-state"><i class="fas fa-archive"></i><p>No backups yet</p></div>';
+                    return;
+                }
+                
+                container.innerHTML = data.backups.map(backup => {
+                    const date = backup.created_at ? new Date(backup.created_at) : null;
+                    const dateStr = date ? date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+                    const timeStr = date ? date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+                    
+                    return `
+                        <div class="backup-item">
+                            <div class="backup-info">
+                                <div class="backup-name"><i class="fas fa-database"></i> ${backup.filename}</div>
+                                <div class="backup-meta">
+                                    <i class="fas fa-calendar"></i> ${dateStr} ${timeStr} • 
+                                    <i class="fas fa-hdd"></i> ${backup.size_mb} MB
+                                </div>
+                            </div>
+                            <div class="backup-actions">
+                                <button class="btn-restore" onclick="restoreBackup('${backup.filename}')">
+                                    <i class="fas fa-undo"></i> Restore
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('Error fetching backups:', e);
+            }
+        }
+
+        // Create Manual Backup
+        async function createManualBackup() {
+            try {
+                showToast('Creating backup...', 'info');
+                const res = await fetch(`${API_BASE}/api/backup`, { method: 'POST' });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    showToast('Backup created successfully', 'success');
+                    addLog('INFO', 'Manual backup created');
+                    fetchBackups();
+                } else {
+                    showToast(data.message || 'Backup failed', 'error');
+                }
+            } catch (e) {
+                showToast('Failed to create backup', 'error');
+            }
+        }
+
+        // Restore Backup
+        async function restoreBackup(filename) {
+            if (!confirm(`⚠️ Warning!\n\nRestore करताना current database replace होईल.\n\nBackup restore करायचा आहे का?\n\nFile: ${filename}`)) {
+                return;
+            }
+            
+            try {
+                showToast('Restoring backup...', 'info');
+                const res = await fetch(`${API_BASE}/api/backup/restore`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    showToast('Database restored successfully', 'success');
+                    addLog('INFO', `Database restored from ${filename}`);
+                    fetchTableCounts();
+                    fetchSyncHistory();
+                } else {
+                    showToast(data.message || 'Restore failed', 'error');
+                }
+            } catch (e) {
+                showToast('Failed to restore backup', 'error');
+            }
+        }
+
+        // Fetch Schedule Status
+        async function fetchSchedule() {
+            try {
+                const res = await fetch(`${API_BASE}/api/schedule`);
+                const data = await res.json();
+                
+                const config = data.schedule_config || {};
+                document.getElementById('schedule-enabled').checked = config.enabled || false;
+                document.getElementById('schedule-type').value = config.sync_type || 'incremental';
+                document.getElementById('schedule-time').value = config.time || '06:00';
+                
+                // Update days checkboxes
+                const days = config.days || [];
+                document.querySelectorAll('.day-selector input').forEach(cb => {
+                    cb.checked = days.includes(cb.value);
+                });
+                
+                // Update status badge
+                const badge = document.getElementById('schedule-status-badge');
+                const statusText = document.getElementById('schedule-status-text');
+                if (config.enabled) {
+                    badge.className = 'status-badge online';
+                    statusText.textContent = 'Enabled';
+                } else {
+                    badge.className = 'status-badge offline';
+                    statusText.textContent = 'Disabled';
+                }
+                
+                // Show next run time
+                const nextRunRow = document.getElementById('next-run-row');
+                if (data.jobs && data.jobs.length > 0 && data.jobs[0].next_run) {
+                    const nextRun = new Date(data.jobs[0].next_run);
+                    document.getElementById('next-run-time').textContent = nextRun.toLocaleString('en-IN');
+                    nextRunRow.style.display = 'flex';
+                } else {
+                    nextRunRow.style.display = 'none';
+                }
+            } catch (e) {
+                console.error('Error fetching schedule:', e);
+            }
+        }
+
+        // Update Schedule
+        async function updateSchedule() {
+            const enabled = document.getElementById('schedule-enabled').checked;
+            const sync_type = document.getElementById('schedule-type').value;
+            const time = document.getElementById('schedule-time').value;
+            
+            const days = [];
+            document.querySelectorAll('.day-selector input:checked').forEach(cb => {
+                days.push(cb.value);
+            });
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, sync_type, time, days })
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    showToast(enabled ? 'Schedule enabled' : 'Schedule disabled', 'success');
+                    addLog('INFO', `Schedule ${enabled ? 'enabled' : 'disabled'}: ${time} - ${sync_type}`);
+                    fetchSchedule();
+                }
+            } catch (e) {
+                showToast('Failed to update schedule', 'error');
+            }
+        }
+
+        // Refresh All
+        function refreshAll() {
+            fetchHealth();
+            fetchSyncStatus();
+            fetchTableCounts();
+            fetchSyncHistory();
+            fetchBackups();
+            fetchSchedule();
+            showToast('Data refreshed', 'info');
+        }
+
+        // Check for Incomplete Sync (Crash Recovery)
+        async function checkIncompleteSync() {
+            try {
+                const res = await fetch(`${API_BASE}/api/sync/incomplete`);
+                const data = await res.json();
+                
+                if (data.has_incomplete) {
+                    const state = data.sync_state;
+                    const startTime = state.started_at ? new Date(state.started_at).toLocaleString('en-IN') : 'Unknown';
+                    
+                    document.getElementById('incomplete-details').innerHTML = `
+                        <p><strong>Sync Type:</strong> ${state.sync_type}</p>
+                        <p><strong>Started:</strong> ${startTime}</p>
+                        <p><strong>Last Table:</strong> ${state.current_table || 'N/A'}</p>
+                        <p><strong>Rows Processed:</strong> ${state.rows_processed || 0}</p>
+                    `;
+                    document.getElementById('incomplete-modal').style.display = 'flex';
+                    addLog('WARNING', 'Incomplete sync detected from previous session');
+                }
+            } catch (e) {
+                console.error('Error checking incomplete sync:', e);
+            }
+        }
+
+        // Dismiss Incomplete Sync Warning
+        async function dismissIncomplete() {
+            document.getElementById('incomplete-modal').style.display = 'none';
+            try {
+                await fetch(`${API_BASE}/api/sync/incomplete/dismiss`, { method: 'POST' });
+            } catch (e) {
+                console.error('Error dismissing incomplete sync:', e);
+            }
+        }
+
+        // Initial Load - Show company selection first
+        loadOpenCompanies();
+        fetchHealth();
+
+        // Auto-refresh
+        setInterval(fetchHealth, 10000);
+        setInterval(fetchSyncStatus, 3000);
+        setInterval(fetchTableCounts, 30000);
+    </script>
+</body>
+</html>
