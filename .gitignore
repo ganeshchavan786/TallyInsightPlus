@@ -44,3 +44,15 @@ htmlcov/
 
 # Node (if any)
 node_modules/
+
+# Local folders - NOT for GitHub
+bugfix/
+docs/
+poc/
+release_notes/
+srs/
+tasks/
+temp/
+todo/
+CHANGELOG.md
+PROJECT_PLAN.md
