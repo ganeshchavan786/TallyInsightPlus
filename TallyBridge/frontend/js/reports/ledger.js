@@ -18,17 +18,85 @@ let ledgerListSortColumn = 'name';
 let ledgerListSortDirection = 'asc';
 let currentLedgerCategory = 'all';  // all, sundry_debtors, sundry_creditors
 
+// ============================================================
+// URL STATE PERSISTENCE - Preserves state on browser refresh
+// ============================================================
+function getUrlParams() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        ledger: params.get('ledger') || '',
+        from: params.get('from') || '',
+        to: params.get('to') || '',
+        tab: params.get('tab') || 'transactions',
+        view: params.get('view') || 'ledgerlist'  // Main view: ledgerlist or transactions
+    };
+}
+
+function updateUrlParams() {
+    const params = new URLSearchParams();
+    if (selectedLedger) params.set('ledger', selectedLedger);
+    const fromDate = document.getElementById('fromDate')?.value;
+    const toDate = document.getElementById('toDate')?.value;
+    if (fromDate) params.set('from', fromDate);
+    if (toDate) params.set('to', toDate);
+    if (currentTab) params.set('tab', currentTab);
+    if (currentMainTab) params.set('view', currentMainTab);
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+}
+
+function restoreStateFromUrl() {
+    const urlParams = getUrlParams();
+    
+    // Restore dates
+    if (urlParams.from) {
+        document.getElementById('fromDate').value = urlParams.from;
+    }
+    if (urlParams.to) {
+        document.getElementById('toDate').value = urlParams.to;
+    }
+    
+    // Restore tab (transactions/billwise)
+    if (urlParams.tab) {
+        currentTab = urlParams.tab;
+    }
+    
+    // Restore main view (ledgerlist/transactions)
+    if (urlParams.view) {
+        currentMainTab = urlParams.view;
+    }
+    
+    // Return ledger to load after companies are loaded
+    return urlParams.ledger;
+}
+// ============================================================
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     if (!checkAuth()) return;
     
     initializeDates();
     
+    // Restore state from URL (dates, tab, view)
+    const savedLedger = restoreStateFromUrl();
+    
     const loaded = await loadCompanies();
     console.log('Companies loaded:', loaded, 'selectedCompany:', selectedCompany);
     if (loaded && selectedCompany) {
         await loadLedgerMaster();  // Load full ledger master data
         await loadLedgerList();    // Load simple list for dropdown
+        
+        // Restore saved ledger from URL
+        if (savedLedger) {
+            console.log('Restoring ledger from URL:', savedLedger);
+            // First switch to transactions view, then select ledger
+            switchMainTab('transactions');
+            await selectLedger(savedLedger);
+        } else {
+            // No saved ledger, show the restored main view
+            switchMainTab(currentMainTab);
+        }
     } else {
         console.warn('No company selected, cannot load ledgers');
     }
@@ -362,14 +430,29 @@ function filterLedgerDropdown() {
 async function selectLedger(ledgerName) {
     selectedLedger = ledgerName;
     document.getElementById('ledgerSearchInput').value = ledgerName;
-    document.getElementById('ledgerDropdown').style.display = 'none';
+    const dropdown = document.getElementById('ledgerDropdown');
+    if (dropdown) dropdown.style.display = 'none';
     
     document.getElementById('ledgerStats').style.display = 'grid';
     document.getElementById('ledgerTabs').style.display = 'flex';
     document.getElementById('tableTitle').textContent = ledgerName;
     // PDF button is now always visible
     
+    // Switch to transactions view if on ledger list
+    if (currentMainTab === 'ledgerlist') {
+        switchMainTab('transactions');
+    }
+    
+    // Update tab UI based on restored state
+    document.querySelectorAll('.report-tab[data-tab]').forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === currentTab);
+    });
+    updateTableForTab();
+    
     await loadLedgerTransactions();
+    
+    // Save state to URL for refresh persistence
+    updateUrlParams();
 }
 
 // Export Ledger PDF
@@ -421,6 +504,8 @@ async function exportLedgerPDF() {
 function reloadLedgerIfSelected() {
     if (selectedLedger) {
         loadLedgerTransactions();
+        // Save state to URL for refresh persistence
+        updateUrlParams();
     }
 }
 
@@ -478,6 +563,9 @@ function switchLedgerTab(tab) {
     
     updateTableForTab();
     renderLedgerTable();
+    
+    // Save state to URL for refresh persistence
+    updateUrlParams();
 }
 
 // Update table header for tab
@@ -497,10 +585,17 @@ function updateTableForTab() {
             </tr>
         `;
     } else {
+        // ============================================================
+        // BILL-WISE TABLE HEADER
+        // Columns: Bill No, Bill Date, Due Date, Bill Amount, Paid, Pending, Overdue Days
+        // Due Date = Bill Date + Credit Period (if credit_period=0, due_date=bill_date)
+        // Overdue Days = Selected Period's To Date - Due Date
+        // ============================================================
         thead.innerHTML = `
             <tr>
                 <th data-sort="bill_name" style="cursor:pointer">BILL NO <span class="sort-icon">↕</span></th>
                 <th data-sort="bill_date" style="cursor:pointer">BILL DATE <span class="sort-icon">↕</span></th>
+                <th data-sort="due_date" style="cursor:pointer">DUE DATE <span class="sort-icon">↕</span></th>
                 <th class="text-right" data-sort="bill_amount" style="cursor:pointer">BILL AMOUNT <span class="sort-icon">↕</span></th>
                 <th class="text-right" data-sort="paid_amount" style="cursor:pointer">PAID AMOUNT <span class="sort-icon">↕</span></th>
                 <th class="text-right" data-sort="pending" style="cursor:pointer">PENDING <span class="sort-icon">↕</span></th>
@@ -524,19 +619,20 @@ function renderLedgerTable() {
     }
 }
 
-// Render transactions table
+// ============================================================
+// DEVELOPER NOTE: LEDGER TABLE DISPLAY LOGIC
+// - Opening Balance row: ALWAYS show (even with 0 transactions)
+// - Transactions: Show if available, else show "No transactions in this period"
+// - Closing Balance row: ALWAYS show (even with 0 transactions)
+// This matches Tally's behavior where Opening/Closing are always visible
+// ============================================================
 function renderTransactionsTable(tbody) {
-    if (ledgerTransactions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No transactions found</td></tr>';
-        document.getElementById('recordCount').textContent = '0 entries';
-        return;
-    }
-    
     // Calculate running balance
     let balance = 0;
     const openingBalance = parseFloat(document.getElementById('ledgerOpening').textContent.replace(/[₹,]/g, '')) || 0;
     balance = openingBalance;
     
+    // Opening Balance row - ALWAYS show
     let html = `
         <tr class="opening-row">
             <td></td>
@@ -548,6 +644,15 @@ function renderTransactionsTable(tbody) {
             <td class="text-right"><strong>${formatAmount(openingBalance)}</strong></td>
         </tr>
     `;
+    
+    // If no transactions, show message row
+    if (ledgerTransactions.length === 0) {
+        html += `
+            <tr>
+                <td colspan="7" class="loading-cell" style="color: #6b7280; font-style: italic;">No transactions in this period</td>
+            </tr>
+        `;
+    }
     
     let totalDebit = 0;
     let totalCredit = 0;
@@ -565,7 +670,7 @@ function renderTransactionsTable(tbody) {
                 <td>${formatDate(txn.date)}</td>
                 <td>${txn.particulars || txn.counter_ledger || '-'}</td>
                 <td>${txn.voucher_type || '-'}</td>
-                <td>${txn.voucher_number || '-'}</td>
+                <td>${txn.voucher_no || '-'}</td>
                 <td class="text-right">${debit > 0 ? formatAmount(debit) : '-'}</td>
                 <td class="text-right">${credit > 0 ? formatAmount(credit) : '-'}</td>
                 <td class="text-right">${formatAmount(balance)}</td>
@@ -631,8 +736,16 @@ async function loadLedgerBillwise() {
         ledgerBills = response?.bills || [];
         const onAccount = response?.on_account || 0;
         
+        // ============================================================
+        // BILL-WISE TABLE LOGIC
+        // - Due Date = Bill Date + Credit Period (from API)
+        // - If due_date is null, use bill_date as due_date
+        // - Overdue Days = Selected Period's To Date - Due Date (from API)
+        // - Total = Bills Pending - On Account = Ledger Opening Balance
+        // ============================================================
+        
         if (ledgerBills.length === 0 && onAccount === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No pending bills found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No pending bills found for this period</td></tr>';
             document.getElementById('recordCount').textContent = '0 bills';
             return;
         }
@@ -645,12 +758,15 @@ async function loadLedgerBillwise() {
             const pending = bill.pending_amount || 0;
             const paid = billAmount - pending;
             const overdueDays = bill.overdue_days || 0;
+            // Due Date: Use API value, fallback to bill_date if null
+            const dueDate = bill.due_date || bill.bill_date;
             totalPending += pending;
             
             html += `
                 <tr>
                     <td>${bill.bill_no || '-'}</td>
                     <td>${formatDate(bill.bill_date)}</td>
+                    <td>${formatDate(dueDate)}</td>
                     <td class="text-right">${formatAmount(billAmount)}</td>
                     <td class="text-right">${formatAmount(paid)}</td>
                     <td class="text-right">${formatAmount(pending)}</td>
@@ -663,18 +779,20 @@ async function loadLedgerBillwise() {
         if (onAccount !== 0) {
             html += `
                 <tr class="on-account-row">
-                    <td colspan="4"><strong>On Account</strong></td>
+                    <td colspan="5"><strong>On Account</strong></td>
                     <td class="text-right"><strong>${formatAmount(onAccount)}</strong></td>
                     <td></td>
                 </tr>
             `;
         }
         
-        // Add total row
+        // Total = Bills Pending - On Account (matches Ledger Opening Balance)
+        // This is the NET amount, not sum of bills + on account
+        const netTotal = totalPending - onAccount;
         html += `
             <tr class="total-row">
-                <td colspan="4"><strong>Total</strong></td>
-                <td class="text-right"><strong>${formatAmount(totalPending + onAccount)}</strong></td>
+                <td colspan="5"><strong>Total (Net)</strong></td>
+                <td class="text-right"><strong>${formatAmount(netTotal)}</strong></td>
                 <td></td>
             </tr>
         `;
@@ -684,7 +802,7 @@ async function loadLedgerBillwise() {
         
     } catch (error) {
         console.error('Failed to load billwise:', error);
-        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load bills: ' + error.message + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Failed to load bills: ' + error.message + '</td></tr>';
     }
 }
 

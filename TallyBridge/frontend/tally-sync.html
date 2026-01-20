@@ -834,7 +834,7 @@
             if (btn) btn.innerHTML = '⏳ Syncing...';
             
             try {
-                const response = await fetch(`${TALLY_SERVICE_URL}/sync/incremental?company=${encodeURIComponent(companyName)}`, {
+                const response = await fetch(`${TALLY_SERVICE_URL}/tally/sync?company_name=${encodeURIComponent(companyName)}&sync_mode=incremental`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -866,7 +866,7 @@
             if (btn) btn.innerHTML = '⏳ Re-syncing...';
             
             try {
-                const response = await fetch(`${TALLY_SERVICE_URL}/sync/full?company=${encodeURIComponent(companyName)}`, {
+                const response = await fetch(`${TALLY_SERVICE_URL}/tally/sync?company_name=${encodeURIComponent(companyName)}&sync_mode=full`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
