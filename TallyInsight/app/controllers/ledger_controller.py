@@ -307,34 +307,233 @@ async def get_ledger_billwise(
         
         bills = await database_service.fetch_all(query, tuple(params))
         
-        # Calculate bills sub total
-        bills_total = sum(b['pending_amount'] or 0 for b in bills)
+        # Calculate bills sub total (Opening Amount and Pending Amount)
+        bills_total_opening = sum(b['opening_amount'] or 0 for b in bills)
+        bills_total_pending = sum(b['pending_amount'] or 0 for b in bills)
         
-        # Get ledger opening balance
-        ledger_query = "SELECT opening_balance FROM mst_ledger WHERE name = ?"
-        ledger_params = [ledger]
+        # ============================================================
+        # ON ACCOUNT LOGIC:
+        # On Account = Vouchers where billtype = 'On Account'
+        # These are payments/receipts NOT linked to any specific bill
+        # ============================================================
+        on_account_query = """
+            SELECT 
+                v.date as voucher_date,
+                v.voucher_number as voucher_no,
+                v.voucher_type,
+                ABS(b.amount) as amount
+            FROM trn_bill b
+            JOIN trn_voucher v ON b.guid = v.guid
+            WHERE b.ledger = ? AND b.billtype = 'On Account'
+        """
+        on_account_params = [ledger]
         if company:
-            ledger_query += " AND _company = ?"
-            ledger_params.append(company)
+            on_account_query += " AND b._company = ?"
+            on_account_params.append(company)
+        on_account_query += " ORDER BY v.date"
         
-        ledger_result = await database_service.fetch_all(ledger_query, tuple(ledger_params))
-        ledger_opening = ledger_result[0]['opening_balance'] if ledger_result else 0
+        on_account_vouchers = await database_service.fetch_all(on_account_query, tuple(on_account_params))
         
-        # On Account = Bills Total - Ledger Opening Balance
-        # If bills_total = 76,464 Cr and ledger_opening = 36,464 Cr
-        # Then on_account = 76,464 - 36,464 = 40,000 (Dr because it reduces the balance)
-        on_account = bills_total - (ledger_opening or 0)
-        on_account_date = None  # Will be set from opening bill allocation if exists
+        # Calculate On Account total
+        on_account_total = sum(v['amount'] or 0 for v in on_account_vouchers)
+        
+        # Grand Total = Bills Sub Total + On Account
+        grand_total_opening = bills_total_opening + on_account_total
+        grand_total_pending = bills_total_pending + on_account_total
         
         return {
             "ledger": ledger,
             "bills": [dict(b) for b in bills],
-            "on_account": on_account,
-            "on_account_date": on_account_date,
+            "bills_sub_total_opening": bills_total_opening,
+            "bills_sub_total_pending": bills_total_pending,
+            "on_account_vouchers": [dict(v) for v in on_account_vouchers],
+            "on_account_total": on_account_total,
+            "grand_total_opening": grand_total_opening,
+            "grand_total_pending": grand_total_pending,
             "total_bills": len(bills)
         }
     except Exception as e:
         logger.error(f"Failed to get ledger billwise: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ledger-billwise/pdf")
+async def get_ledger_billwise_pdf(
+    ledger: str = Query(..., description="Ledger name"),
+    company: Optional[str] = None,
+    from_date: Optional[str] = Query(default=None, description="From date (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(default=None, description="To date (YYYY-MM-DD)")
+):
+    """Generate Bill-wise PDF matching Tally format"""
+    try:
+        await database_service.connect()
+        
+        # Get billwise data using existing function logic
+        ref_date_sql = f"'{to_date}'" if to_date else "date('now')"
+        
+        query = f"""
+            WITH all_bills AS (
+                SELECT 
+                    o.name as bill_no,
+                    o.bill_date,
+                    o.bill_credit_period as credit_period_raw,
+                    o.opening_balance as amount,
+                    o.opening_balance as opening_amount,
+                    'Opening' as source,
+                    o._company
+                FROM mst_opening_bill_allocation o
+                WHERE o.ledger = ? AND o.name != ''
+                
+                UNION ALL
+                
+                SELECT 
+                    b.name as bill_no,
+                    v.date as bill_date,
+                    b.bill_credit_period as credit_period_raw,
+                    CASE 
+                        WHEN b.billtype = 'New Ref' THEN ABS(b.amount)
+                        WHEN b.billtype = 'Agst Ref' THEN -ABS(b.amount)
+                        ELSE 0 
+                    END as amount,
+                    CASE WHEN b.billtype = 'New Ref' THEN ABS(b.amount) ELSE 0 END as opening_amount,
+                    v.voucher_type as source,
+                    b._company
+                FROM trn_bill b
+                JOIN trn_voucher v ON b.guid = v.guid
+                WHERE b.ledger = ? AND b.name != '' AND b.billtype IN ('New Ref', 'Agst Ref')
+            )
+            SELECT 
+                bill_no,
+                MIN(bill_date) as bill_date,
+                MAX(credit_period_raw) as credit_period_raw,
+                SUM(opening_amount) as opening_amount,
+                SUM(amount) as pending_amount,
+                CASE 
+                    WHEN MAX(credit_period_raw) LIKE '%Days%' THEN 
+                        date(MIN(bill_date), '+' || CAST(REPLACE(REPLACE(MAX(credit_period_raw), ' Days', ''), ' ', '') AS INTEGER) || ' days')
+                    WHEN MAX(credit_period_raw) LIKE '%-%' THEN 
+                        date(
+                            '20' || SUBSTR(MAX(credit_period_raw), -2) || '-' ||
+                            CASE SUBSTR(MAX(credit_period_raw), INSTR(MAX(credit_period_raw), '-') + 1, 3)
+                                WHEN 'Jan' THEN '01' WHEN 'Feb' THEN '02' WHEN 'Mar' THEN '03'
+                                WHEN 'Apr' THEN '04' WHEN 'May' THEN '05' WHEN 'Jun' THEN '06'
+                                WHEN 'Jul' THEN '07' WHEN 'Aug' THEN '08' WHEN 'Sep' THEN '09'
+                                WHEN 'Oct' THEN '10' WHEN 'Nov' THEN '11' WHEN 'Dec' THEN '12'
+                                ELSE '01'
+                            END || '-' ||
+                            SUBSTR('0' || SUBSTR(MAX(credit_period_raw), 1, INSTR(MAX(credit_period_raw), '-') - 1), -2)
+                        )
+                    ELSE MIN(bill_date)
+                END as due_date,
+                CAST(julianday({ref_date_sql}) - julianday(
+                    CASE 
+                        WHEN MAX(credit_period_raw) LIKE '%Days%' THEN 
+                            date(MIN(bill_date), '+' || CAST(REPLACE(REPLACE(MAX(credit_period_raw), ' Days', ''), ' ', '') AS INTEGER) || ' days')
+                        WHEN MAX(credit_period_raw) LIKE '%-%' THEN 
+                            date(
+                                '20' || SUBSTR(MAX(credit_period_raw), -2) || '-' ||
+                                CASE SUBSTR(MAX(credit_period_raw), INSTR(MAX(credit_period_raw), '-') + 1, 3)
+                                    WHEN 'Jan' THEN '01' WHEN 'Feb' THEN '02' WHEN 'Mar' THEN '03'
+                                    WHEN 'Apr' THEN '04' WHEN 'May' THEN '05' WHEN 'Jun' THEN '06'
+                                    WHEN 'Jul' THEN '07' WHEN 'Aug' THEN '08' WHEN 'Sep' THEN '09'
+                                    WHEN 'Oct' THEN '10' WHEN 'Nov' THEN '11' WHEN 'Dec' THEN '12'
+                                    ELSE '01'
+                                END || '-' ||
+                                SUBSTR('0' || SUBSTR(MAX(credit_period_raw), 1, INSTR(MAX(credit_period_raw), '-') - 1), -2)
+                            )
+                        ELSE MIN(bill_date)
+                    END
+                ) AS INTEGER) as overdue_days
+            FROM all_bills
+            WHERE 1=1
+        """
+        params = [ledger, ledger]
+        
+        if company:
+            query += " AND _company = ?"
+            params.append(company)
+        
+        query += " GROUP BY bill_no HAVING pending_amount != 0 ORDER BY bill_date"
+        
+        bills = await database_service.fetch_all(query, tuple(params))
+        
+        # Calculate totals
+        bills_total_opening = sum(b['opening_amount'] or 0 for b in bills)
+        bills_total_pending = sum(b['pending_amount'] or 0 for b in bills)
+        
+        # On Account vouchers
+        on_account_query = """
+            SELECT 
+                v.date as voucher_date,
+                v.voucher_number as voucher_no,
+                v.voucher_type,
+                ABS(b.amount) as amount
+            FROM trn_bill b
+            JOIN trn_voucher v ON b.guid = v.guid
+            WHERE b.ledger = ? AND b.billtype = 'On Account'
+        """
+        on_account_params = [ledger]
+        if company:
+            on_account_query += " AND b._company = ?"
+            on_account_params.append(company)
+        on_account_query += " ORDER BY v.date"
+        
+        on_account_vouchers = await database_service.fetch_all(on_account_query, tuple(on_account_params))
+        on_account_total = sum(v['amount'] or 0 for v in on_account_vouchers)
+        
+        grand_total_opening = bills_total_opening + on_account_total
+        grand_total_pending = bills_total_pending + on_account_total
+        
+        # Get company info
+        company_query = "SELECT name, address, state, pincode, email, cin FROM mst_company WHERE _company = ?"
+        company_result = await database_service.fetch_all(company_query, (company,))
+        
+        if company_result:
+            c = company_result[0]
+            company_address = c['address'] or ''
+            if c['state']:
+                company_address += f"\n{c['state']}"
+            if c['pincode']:
+                company_address += f" - {c['pincode']}"
+            company_info = {
+                "name": c['name'] or company,
+                "address": company_address,
+                "cin": c['cin'] or "",
+                "email": c['email'] or ""
+            }
+        else:
+            company_info = {"name": company, "address": "", "cin": "", "email": ""}
+        
+        ledger_info = {"name": ledger}
+        
+        # Generate PDF
+        from ..services.pdf_service import pdf_service
+        pdf_bytes = pdf_service.generate_billwise_pdf(
+            company_info=company_info,
+            ledger_info=ledger_info,
+            bills=[dict(b) for b in bills],
+            bills_sub_total_opening=bills_total_opening,
+            bills_sub_total_pending=bills_total_pending,
+            on_account_vouchers=[dict(v) for v in on_account_vouchers],
+            on_account_total=on_account_total,
+            grand_total_opening=grand_total_opening,
+            grand_total_pending=grand_total_pending,
+            from_date=from_date,
+            to_date=to_date
+        )
+        
+        # Return PDF response
+        from fastapi.responses import Response
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Billwise_{ledger.replace(' ', '_')}.pdf"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to generate billwise PDF: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

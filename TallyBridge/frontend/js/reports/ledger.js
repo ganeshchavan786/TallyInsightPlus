@@ -455,7 +455,7 @@ async function selectLedger(ledgerName) {
     updateUrlParams();
 }
 
-// Export Ledger PDF
+// Export PDF - Ledger Report or Bill-wise based on current tab
 async function exportLedgerPDF() {
     if (!selectedLedger) {
         alert('Please select a ledger first');
@@ -471,10 +471,23 @@ async function exportLedgerPDF() {
     if (fromDate) params.append('from_date', fromDate);
     if (toDate) params.append('to_date', toDate);
     
+    // ============================================================
+    // PDF EXPORT LOGIC:
+    // - Transactions tab: Export Ledger Report PDF
+    // - Bill-wise tab: Export Bill-wise PDF (Pending Bills)
+    // ============================================================
+    const pdfEndpoint = currentTab === 'billwise' 
+        ? '/api/v1/tally/ledger-billwise/pdf' 
+        : '/api/v1/tally/ledger-report/pdf';
+    
+    const fileName = currentTab === 'billwise'
+        ? `Billwise_${selectedLedger.replace(/\s+/g, '_')}.pdf`
+        : `Ledger_${selectedLedger.replace(/\s+/g, '_')}.pdf`;
+    
     try {
         // Fetch PDF with authentication
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/v1/tally/ledger-report/pdf?${params}`, {
+        const response = await fetch(`${pdfEndpoint}?${params}`, {
             headers: {
                 'Authorization': `Bearer ${token}`
             }
@@ -489,7 +502,7 @@ async function exportLedgerPDF() {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Ledger_${selectedLedger.replace(/\s+/g, '_')}.pdf`;
+        a.download = fileName;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -586,20 +599,19 @@ function updateTableForTab() {
         `;
     } else {
         // ============================================================
-        // BILL-WISE TABLE HEADER
-        // Columns: Bill No, Bill Date, Due Date, Bill Amount, Paid, Pending, Overdue Days
-        // Due Date = Bill Date + Credit Period (if credit_period=0, due_date=bill_date)
-        // Overdue Days = Selected Period's To Date - Due Date
+        // BILL-WISE TABLE HEADER (Tally Arrangement)
+        // Columns: Date, Ref. No., Opening Amt, Pending Amt, Due On, Overdue By Days
+        // Due Date = Bill Date + Credit Period (from API)
+        // Overdue Days = Selected Period's To Date - Due Date (from API)
         // ============================================================
         thead.innerHTML = `
             <tr>
-                <th data-sort="bill_name" style="cursor:pointer">BILL NO <span class="sort-icon">↕</span></th>
-                <th data-sort="bill_date" style="cursor:pointer">BILL DATE <span class="sort-icon">↕</span></th>
-                <th data-sort="due_date" style="cursor:pointer">DUE DATE <span class="sort-icon">↕</span></th>
-                <th class="text-right" data-sort="bill_amount" style="cursor:pointer">BILL AMOUNT <span class="sort-icon">↕</span></th>
-                <th class="text-right" data-sort="paid_amount" style="cursor:pointer">PAID AMOUNT <span class="sort-icon">↕</span></th>
-                <th class="text-right" data-sort="pending" style="cursor:pointer">PENDING <span class="sort-icon">↕</span></th>
-                <th class="text-right" data-sort="overdue_days" style="cursor:pointer">OVERDUE DAYS <span class="sort-icon">↕</span></th>
+                <th data-sort="bill_date" style="cursor:pointer">DATE <span class="sort-icon">↕</span></th>
+                <th data-sort="bill_name" style="cursor:pointer">REF. NO. <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="opening_amount" style="cursor:pointer">OPENING AMT <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="pending" style="cursor:pointer">PENDING AMT <span class="sort-icon">↕</span></th>
+                <th data-sort="due_date" style="cursor:pointer">DUE ON <span class="sort-icon">↕</span></th>
+                <th class="text-right" data-sort="overdue_days" style="cursor:pointer">OVERDUE BY DAYS <span class="sort-icon">↕</span></th>
             </tr>
         `;
     }
@@ -734,68 +746,86 @@ async function loadLedgerBillwise() {
         console.log('Billwise response:', response);
         
         ledgerBills = response?.bills || [];
-        const onAccount = response?.on_account || 0;
+        // New API response fields
+        const billsSubTotalOpening = response?.bills_sub_total_opening || 0;
+        const billsSubTotalPending = response?.bills_sub_total_pending || 0;
+        const onAccountVouchers = response?.on_account_vouchers || [];
+        const onAccountTotal = response?.on_account_total || 0;
+        const grandTotalOpening = response?.grand_total_opening || 0;
+        const grandTotalPending = response?.grand_total_pending || 0;
         
         // ============================================================
-        // BILL-WISE TABLE LOGIC
-        // - Due Date = Bill Date + Credit Period (from API)
-        // - If due_date is null, use bill_date as due_date
-        // - Overdue Days = Selected Period's To Date - Due Date (from API)
-        // - Total = Bills Pending - On Account = Ledger Opening Balance
+        // BILL-WISE TABLE LOGIC (Tally Arrangement)
+        // - Columns: Date, Ref. No., Opening Amt, Pending Amt, Due On, Overdue By Days
+        // - Sub Total row after bills
+        // - On Account section with voucher details
+        // - Total row at the end
         // ============================================================
         
-        if (ledgerBills.length === 0 && onAccount === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">No pending bills found for this period</td></tr>';
+        if (ledgerBills.length === 0 && onAccountTotal === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No pending bills found for this period</td></tr>';
             document.getElementById('recordCount').textContent = '0 bills';
             return;
         }
         
         let html = '';
-        let totalPending = 0;
         
+        // Bills rows (Tally arrangement: Date, Ref. No., Opening Amt, Pending Amt, Due On, Overdue By Days)
         ledgerBills.forEach(bill => {
-            const billAmount = bill.opening_amount || 0;
-            const pending = bill.pending_amount || 0;
-            const paid = billAmount - pending;
+            const openingAmount = bill.opening_amount || 0;
+            const pendingAmount = bill.pending_amount || 0;
             const overdueDays = bill.overdue_days || 0;
-            // Due Date: Use API value, fallback to bill_date if null
             const dueDate = bill.due_date || bill.bill_date;
-            totalPending += pending;
             
             html += `
                 <tr>
-                    <td>${bill.bill_no || '-'}</td>
                     <td>${formatDate(bill.bill_date)}</td>
+                    <td>${bill.bill_no || '-'}</td>
+                    <td class="text-right">${formatAmount(openingAmount)} Dr</td>
+                    <td class="text-right">${formatAmount(pendingAmount)} Dr</td>
                     <td>${formatDate(dueDate)}</td>
-                    <td class="text-right">${formatAmount(billAmount)}</td>
-                    <td class="text-right">${formatAmount(paid)}</td>
-                    <td class="text-right">${formatAmount(pending)}</td>
-                    <td class="text-right ${overdueDays > 0 ? 'text-danger' : ''}">${overdueDays > 0 ? overdueDays + ' days' : '-'}</td>
+                    <td class="text-right ${overdueDays > 0 ? 'text-danger' : ''}">${overdueDays > 0 ? overdueDays : '-'}</td>
                 </tr>
             `;
         });
         
-        // Add On Account row if exists
-        if (onAccount !== 0) {
-            html += `
-                <tr class="on-account-row">
-                    <td colspan="5"><strong>On Account</strong></td>
-                    <td class="text-right"><strong>${formatAmount(onAccount)}</strong></td>
-                    <td></td>
-                </tr>
-            `;
-        }
-        
-        // Total = Bills Pending - On Account (matches Ledger Opening Balance)
-        // This is the NET amount, not sum of bills + on account
-        const netTotal = totalPending - onAccount;
+        // Sub Total row
         html += `
-            <tr class="total-row">
-                <td colspan="5"><strong>Total (Net)</strong></td>
-                <td class="text-right"><strong>${formatAmount(netTotal)}</strong></td>
+            <tr style="background: #f1f5f9; border-top: 2px solid #cbd5e1;">
+                <td></td>
+                <td><strong>Sub Total</strong></td>
+                <td class="text-right"><strong>${formatAmount(billsSubTotalOpening)} Dr</strong></td>
+                <td class="text-right"><strong>${formatAmount(billsSubTotalPending)} Dr</strong></td>
+                <td></td>
                 <td></td>
             </tr>
         `;
+        
+        // On Account section header
+        if (onAccountVouchers.length > 0 || onAccountTotal > 0) {
+            html += `
+                <tr style="background: #e2e8f0;">
+                    <td colspan="6"><strong>On Account</strong></td>
+                </tr>
+            `;
+            
+            // On Account voucher details
+            onAccountVouchers.forEach(voucher => {
+                html += `
+                    <tr>
+                        <td>${formatDate(voucher.voucher_date)}</td>
+                        <td>${voucher.voucher_type || ''} ${voucher.voucher_no || ''}</td>
+                        <td class="text-right">${formatAmount(voucher.amount)} Dr</td>
+                        <td class="text-right">${formatAmount(voucher.amount)} Dr</td>
+                        <td></td>
+                        <td></td>
+                    </tr>
+                `;
+            });
+        }
+        
+        // Note: Tally does NOT show Total row in Pending Bills view
+        // Only Sub Total and On Account are shown
         
         tbody.innerHTML = html;
         document.getElementById('recordCount').textContent = `${ledgerBills.length} bills`;

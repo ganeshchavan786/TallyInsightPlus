@@ -391,6 +391,23 @@ async def delete_company(
 
 # ==================== PDF EXPORT ====================
 
+@router.get("/ledger-billwise/pdf")
+async def get_ledger_billwise_pdf(
+    ledger: str = Query(..., description="Ledger name"),
+    company: Optional[str] = None,
+    from_date: Optional[str] = Query(default=None, description="From date (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(default=None, description="To date (YYYY-MM-DD)")
+):
+    """Proxy to TallyInsight for Bill-wise PDF generation"""
+    result = await tally_service.get_ledger_billwise_pdf(
+        ledger=ledger,
+        company=company,
+        from_date=from_date,
+        to_date=to_date
+    )
+    return result
+
+
 @router.get("/ledger-report/pdf")
 async def get_ledger_report_pdf(
     ledger: str = Query(..., description="Ledger name"),
