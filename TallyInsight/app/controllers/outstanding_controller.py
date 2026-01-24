@@ -261,70 +261,155 @@ async def get_ledgerwise_outstanding(
     from_date: Optional[str] = Query(default=None, description="Period start date (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(default=None, description="Period end date (YYYY-MM-DD)")
 ):
-    """Get ledger-wise outstanding - bills grouped by party with subtotals like Tally"""
+    """
+    Get ledger-wise outstanding - bills grouped by party with subtotals like Tally
+    
+    DEVELOPER NOTE - TALLY LOGIC (CORRECTED):
+    ==========================================
+    Tally Outstanding Reports show INDIVIDUAL BILLS by their Dr/Cr nature:
+    - RECEIVABLE: All bills with Dr (positive) balance
+    - PAYABLE: All bills with Cr (negative) balance
+    
+    A party can appear in BOTH reports if they have both Dr and Cr bills.
+    Example: Aerocircle (Sundry Debtor, net Cr balance) shows:
+      - Dr bill (₹3,500) in RECEIVABLE
+      - Cr bills in PAYABLE
+    
+    PREVIOUS BUGS:
+    ==============
+    1. Filtered by party NET balance → Wrong! Should filter by INDIVIDUAL bill balance
+    2. Sign reversal for Sundry Creditors → Wrong! Database has correct signed values
+    
+    CORRECT LOGIC:
+    ==============
+    1. Fetch all bills from Opening + Transaction
+    2. Filter bills by individual balance (Dr > 0 for Receivable, Cr < 0 for Payable)
+    3. Group by party for display
+    
+    This matches Tally's behavior exactly.
+    """
     try:
         await database_service.connect()
         
         ref_date_sql = f"'{to_date}'" if to_date else "date('now')"
         
+        # Build balance filter condition
+        # CRITICAL: Database stores bills with specific sign convention:
+        # - Negative value in DB = Dr bill (Tally shows "Dr" in bill-wise breakup)
+        # - Positive value in DB = Cr bill (Tally shows "Cr" in bill-wise breakup)
+        # 
+        # After negating transaction amounts, both use same convention:
+        # - Negative = Dr bill (Receivable)
+        # - Positive = Cr bill (Payable)
+        # 
+        # Tally Outstanding Reports:
+        # - "Bills Receivable" = Dr bills (negative after processing)
+        # - "Bills Payable" = Cr bills (positive after processing)
+        if type == "receivable":
+            balance_filter = "< 0"  # Dr bills (negative after processing)
+        else:
+            balance_filter = "> 0"  # Cr bills (positive after processing)
+        
+        # Single query: Fetch all bills and filter by individual bill balance
         base_query = f"""
             WITH all_bills AS (
-                -- For Creditors: positive = Cr (Payable), negative = Dr (Receivable) - reverse sign
+                -- Opening bills
+                -- Use opening_balance as-is
+                -- Database: negative=Dr bill, positive=Cr bill (matches Tally bill-wise breakup)
                 SELECT 
                     o.ledger as party_name,
                     o.name as bill_no,
                     o.bill_date,
                     CASE WHEN o.bill_credit_period > 0 THEN o.bill_credit_period ELSE 1 END as bill_credit_period,
-                    CASE WHEN l.parent = 'Sundry Creditors' THEN -o.opening_balance ELSE o.opening_balance END as amount,
+                    o.opening_balance as amount,
                     'Opening' as source,
-                    o._company
+                    o._company,
+                    0 as alterid,
+                    'Opening' as billtype
                 FROM mst_opening_bill_allocation o
                 JOIN mst_ledger l ON o.ledger = l.name AND o._company = l._company
                 WHERE l.parent IN ('Sundry Debtors', 'Sundry Creditors') AND o.name != ''
                 
                 UNION ALL
                 
+                -- Transaction bills
+                -- CRITICAL: Transaction bills stored with SAME sign convention as opening
+                -- Database: negative=Dr bill, positive=Cr bill
+                -- Use as-is (NO negation needed - both use same convention)
                 SELECT 
                     b.ledger as party_name,
                     b.name as bill_no,
                     v.date as bill_date,
                     CASE WHEN b.bill_credit_period > 0 THEN b.bill_credit_period ELSE 1 END as bill_credit_period,
-                    CASE 
-                        WHEN b.billtype = 'New Ref' THEN ABS(b.amount)
-                        WHEN b.billtype = 'Agst Ref' THEN -ABS(b.amount)
-                        ELSE 0 
-                    END as amount,
+                    b.amount as amount,  -- Use as-is (same sign convention as opening)
                     v.voucher_type as source,
-                    b._company
+                    b._company,
+                    b.alterid,
+                    b.billtype
                 FROM trn_bill b
                 JOIN trn_voucher v ON b.guid = v.guid
                 JOIN mst_ledger l ON b.ledger = l.name AND b._company = l._company
-                WHERE l.parent IN ('Sundry Debtors', 'Sundry Creditors') AND b.name != '' AND b.billtype IN ('New Ref', 'Agst Ref')
+                WHERE l.parent IN ('Sundry Debtors', 'Sundry Creditors')
+                  AND b.name != '' 
+                  AND b.billtype IN ('New Ref', 'Agst Ref', 'Advance')
+            ),
+            deduped_bills AS (
+                -- Remove duplicates by keeping only latest alterid for each entry
+                -- CRITICAL: Partition by party, bill_no, billtype, date, amount to handle:
+                -- - Same bill with multiple sources (Receipt, Sales) → sum together
+                -- - Same bill with same date/amount but different billtype (New Ref vs Agst Ref) → keep separate
+                SELECT 
+                    party_name,
+                    bill_no,
+                    bill_date,
+                    bill_credit_period,
+                    amount,
+                    source,
+                    _company,
+                    alterid,
+                    billtype,
+                    ROW_NUMBER() OVER (PARTITION BY party_name, bill_no, billtype, bill_date, amount ORDER BY alterid DESC) as rn
+                FROM all_bills
+            ),
+            bill_totals AS (
+                -- Group by bill and calculate total (handles multiple entries for same bill)
+                -- CRITICAL: Tally checks total Dr vs total Cr for each bill
+                -- Bills with net = 0 (fully settled) are excluded by HAVING clause
+                -- Includes all bill types: New Ref, Agst Ref, Advance, Opening balance
+                SELECT 
+                    d.party_name,
+                    d.bill_no,
+                    MIN(d.bill_date) as bill_date,
+                    MAX(d.bill_credit_period) as bill_credit_period,
+                    SUM(d.amount) as pending_amount,
+                    GROUP_CONCAT(DISTINCT d.source) as source,
+                    d._company
+                FROM deduped_bills d
+                WHERE d.rn = 1 AND 1=1
+        """
+        
+        params = []
+        if company:
+            base_query += " AND d._company = ?"
+            params.append(company)
+        
+        # Filter by balance (Dr/Cr) AND exclude fully settled bills (net = 0)
+        # CRITICAL: Bills with net = 0 should not appear in Outstanding Reports
+        base_query += f"""
+                GROUP BY d.party_name, d.bill_no, d._company
+                HAVING pending_amount {balance_filter} AND ABS(pending_amount) > 0.01
             )
             SELECT 
                 party_name,
                 bill_no,
-                MIN(bill_date) as bill_date,
-                date(MIN(bill_date), '+' || MAX(bill_credit_period) || ' days') as due_date,
-                SUM(amount) as pending_amount,
-                CAST(julianday({ref_date_sql}) - julianday(date(MIN(bill_date), '+' || MAX(bill_credit_period) || ' days')) AS INTEGER) as overdue_days,
-                GROUP_CONCAT(DISTINCT source) as source
-            FROM all_bills
-            WHERE 1=1
+                bill_date,
+                date(bill_date, '+' || bill_credit_period || ' days') as due_date,
+                pending_amount,
+                CAST(julianday({ref_date_sql}) - julianday(date(bill_date, '+' || bill_credit_period || ' days')) AS INTEGER) as overdue_days,
+                source
+            FROM bill_totals
+            ORDER BY party_name, bill_date
         """
-        params = []
-        
-        if company:
-            base_query += " AND _company = ?"
-            params.append(company)
-        
-        # Filter by balance type
-        if type == "receivable":
-            base_query += " GROUP BY party_name, bill_no HAVING pending_amount > 0"
-        else:
-            base_query += " GROUP BY party_name, bill_no HAVING pending_amount < 0"
-        
-        base_query += " ORDER BY party_name, bill_date"
         
         bills = await database_service.fetch_all(base_query, tuple(params))
         
@@ -351,15 +436,19 @@ async def get_ledgerwise_outstanding(
                 party_bills = []
                 party_total = 0
             
+            # For Payable, show amounts as positive (absolute value)
+            # For Receivable, amounts are already positive
+            amount = abs(bill['pending_amount']) if bill['pending_amount'] else 0
+            
             party_bills.append({
                 "bill_no": bill['bill_no'],
                 "bill_date": bill['bill_date'],
                 "due_date": bill['due_date'],
-                "pending_amount": bill['pending_amount'],
+                "pending_amount": amount,
                 "overdue_days": bill['overdue_days'],
                 "source": bill['source']
             })
-            party_total += bill['pending_amount'] or 0
+            party_total += amount
         
         # Add last party
         if current_party and party_bills:
