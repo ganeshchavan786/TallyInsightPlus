@@ -15,7 +15,8 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from app.config import settings
 from app.database import engine, Base, get_db_info
-from app.routes import auth, company, user, permission, email, tally, reports
+from app.routes import auth, company, user, permission, email, tally, reports, exports_jobs, admin_email_settings, email_delivery
+import app.models
 from app.middleware import (
     RequestContextMiddleware,
     RateLimiterMiddleware,
@@ -192,6 +193,9 @@ app.include_router(permission.router, prefix=API_V1_PREFIX, tags=["v1 - Permissi
 app.include_router(email.router, prefix=f"{API_V1_PREFIX}/email", tags=["v1 - Email Operations"])
 app.include_router(tally.router, prefix=API_V1_PREFIX, tags=["v1 - Tally Integration"])
 app.include_router(reports.router, prefix=API_V1_PREFIX, tags=["v1 - Reports"])
+app.include_router(exports_jobs.router, prefix=API_V1_PREFIX, tags=["v1 - Export Jobs"])
+app.include_router(admin_email_settings.router, prefix=API_V1_PREFIX, tags=["v1 - Admin Email Settings"])
+app.include_router(email_delivery.router, prefix=API_V1_PREFIX, tags=["v1 - Email Delivery"])
 
 # Legacy routes (backward compatibility) - will be deprecated
 LEGACY_PREFIX = "/api"
@@ -199,6 +203,9 @@ app.include_router(auth.router, prefix=f"{LEGACY_PREFIX}/auth", tags=["Legacy - 
 app.include_router(company.router, prefix=f"{LEGACY_PREFIX}/companies", tags=["Legacy"], include_in_schema=False)
 app.include_router(user.router, prefix=f"{LEGACY_PREFIX}/companies", tags=["Legacy"], include_in_schema=False)
 app.include_router(permission.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
+app.include_router(exports_jobs.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
+app.include_router(admin_email_settings.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
+app.include_router(email_delivery.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
 
 
 # ==================== STATIC FILES (Frontend) ====================
