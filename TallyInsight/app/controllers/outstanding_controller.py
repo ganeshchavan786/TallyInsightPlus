@@ -62,6 +62,14 @@ from ..utils.logger import logger
 router = APIRouter()
 
 
+async def _has_column(table_name: str, column_name: str) -> bool:
+    try:
+        rows = await database_service.fetch_all(f"PRAGMA table_info({table_name})")
+        return any((r.get("name") == column_name) for r in rows)
+    except Exception:
+        return False
+
+
 @router.get("/outstanding")
 async def get_outstanding(
     type: str = Query(default="receivable", description="receivable or payable"),
@@ -354,7 +362,7 @@ async def get_ledgerwise_outstanding(
                     b.amount as amount,  -- Use as-is (same sign convention as opening)
                     v.voucher_type as source,
                     b._company,
-                    b.alterid,
+                    {alterid_expr} as alterid,
                     b.billtype
                 FROM trn_bill b
                 JOIN trn_voucher v ON b.guid = v.guid
