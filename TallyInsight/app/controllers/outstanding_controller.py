@@ -308,6 +308,8 @@ async def get_ledgerwise_outstanding(
     """
     try:
         await database_service.connect()
+
+        alterid_expr = "b.alterid" if await _has_column("trn_bill", "alterid") else "b.rowid"
         
         ref_date_sql = f"'{to_date}'" if to_date else "date('now')"
         
