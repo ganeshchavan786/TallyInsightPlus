@@ -10,6 +10,10 @@ let pageSize = 50;
 let sortColumn = 'closing';
 let sortDirection = 'desc';
 
+let lastBillwiseTotals = null;
+let lastBillwiseTotalCount = null;
+let lastLedgerwiseTotals = null;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     if (!checkAuth()) return;
@@ -147,9 +151,11 @@ async function loadOutstandingData() {
             case 'billwise':
                 params.append('page', currentPage);
                 params.append('page_size', pageSize);
+                params.append('include_totals', String(currentPage === 1));
                 endpoint = `${CONFIG.API_BASE}/outstanding/billwise?${params}`;
                 break;
             case 'ledgerwise':
+                params.append('include_totals', String(true));
                 endpoint = `${CONFIG.API_BASE}/outstanding/ledgerwise?${params}`;
                 break;
             case 'ageing':
@@ -167,6 +173,26 @@ async function loadOutstandingData() {
         
         // Pass the inner data structure to render
         const renderResponse = response?.data || response;
+
+        if (currentReport === 'billwise') {
+            if (renderResponse?.totals) lastBillwiseTotals = renderResponse.totals;
+            const tc = renderResponse?.pagination?.total_count;
+            if (typeof tc === 'number') lastBillwiseTotalCount = tc;
+
+            if (!renderResponse?.totals && lastBillwiseTotals) renderResponse.totals = lastBillwiseTotals;
+            if (renderResponse?.pagination && renderResponse.pagination.total_count == null && typeof lastBillwiseTotalCount === 'number') {
+                renderResponse.pagination.total_count = lastBillwiseTotalCount;
+            }
+        }
+
+        if (currentReport === 'ledgerwise') {
+            if (renderResponse?.totals && Object.keys(renderResponse.totals || {}).length) {
+                lastLedgerwiseTotals = renderResponse.totals;
+            } else if (lastLedgerwiseTotals) {
+                renderResponse.totals = lastLedgerwiseTotals;
+            }
+        }
+
         renderTable(renderResponse);
         updateStats(renderResponse);
         showToast(`Loaded ${Array.isArray(outstandingData) ? outstandingData.length : 1} records`, 'success');

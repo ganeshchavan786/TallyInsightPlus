@@ -118,7 +118,8 @@ async def get_billwise_outstanding(
     from_date: Optional[str] = Query(default=None, description="Period start date (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(default=None, description="Period end date (YYYY-MM-DD)"),
     page: int = Query(default=1, ge=1, description="Page number"),
-    page_size: int = Query(default=50, ge=10, le=100, description="Items per page")
+    page_size: int = Query(default=50, ge=10, le=100, description="Items per page"),
+    include_totals: bool = Query(default=True, description="If false, skip full COUNT/SUM calculations for faster paging")
 ):
     """Get bill-wise outstanding with pagination - includes opening bill allocations
     
@@ -206,30 +207,38 @@ async def get_billwise_outstanding(
                 HAVING pending_amount < 0
             """
         
-        # Count query for total records
-        count_query = f"SELECT COUNT(*) as total FROM ({base_query}) sub"
-        count_result = await database_service.fetch_all(count_query, tuple(params))
-        total_count = count_result[0]['total'] if count_result else 0
-        
-        # Totals query (sum of all, not just current page)
-        totals_query = f"""
-            SELECT 
-                SUM(bill_amount) as total_bill,
-                SUM(paid_amount) as total_paid,
-                SUM(pending_amount) as total_pending
-            FROM ({base_query}) sub
-        """
-        totals_result = await database_service.fetch_all(totals_query, tuple(params))
-        totals = totals_result[0] if totals_result else {}
+        total_count = None
+        totals = {}
+        if include_totals:
+            # Count query for total records
+            count_query = f"SELECT COUNT(*) as total FROM ({base_query}) sub"
+            count_result = await database_service.fetch_all(count_query, tuple(params))
+            total_count = count_result[0]['total'] if count_result else 0
+
+            # Totals query (sum of all, not just current page)
+            totals_query = f"""
+                SELECT 
+                    SUM(bill_amount) as total_bill,
+                    SUM(paid_amount) as total_paid,
+                    SUM(pending_amount) as total_pending
+                FROM ({base_query}) sub
+            """
+            totals_result = await database_service.fetch_all(totals_query, tuple(params))
+            totals = totals_result[0] if totals_result else {}
         
         # Paginated data query
         offset = (page - 1) * page_size
+        effective_limit = page_size if include_totals else (page_size + 1)
         data_query = f"{base_query} ORDER BY overdue_days DESC, party_name LIMIT ? OFFSET ?"
-        data_params = list(params) + [page_size, offset]
+        data_params = list(params) + [effective_limit, offset]
         
-        data = await database_service.fetch_all(data_query, tuple(data_params))
+        rows = await database_service.fetch_all(data_query, tuple(data_params))
+        has_next = (len(rows) > page_size) if not include_totals else False
+        data = rows[:page_size] if not include_totals else rows
         
-        total_pages = (total_count + page_size - 1) // page_size
+        total_pages = (total_count + page_size - 1) // page_size if isinstance(total_count, int) and total_count >= 0 else None
+        if include_totals:
+            has_next = (page < total_pages) if isinstance(total_pages, int) and total_pages > 0 else False
         
         return {
             "type": type,
@@ -240,7 +249,7 @@ async def get_billwise_outstanding(
                 "page_size": page_size,
                 "total_count": total_count,
                 "total_pages": total_pages,
-                "has_next": page < total_pages,
+                "has_next": has_next,
                 "has_prev": page > 1
             },
             "totals": {
@@ -259,7 +268,8 @@ async def get_ledgerwise_outstanding(
     type: str = Query(default="receivable", description="receivable or payable"),
     company: Optional[str] = None,
     from_date: Optional[str] = Query(default=None, description="Period start date (YYYY-MM-DD)"),
-    to_date: Optional[str] = Query(default=None, description="Period end date (YYYY-MM-DD)")
+    to_date: Optional[str] = Query(default=None, description="Period end date (YYYY-MM-DD)"),
+    include_totals: bool = Query(default=True, description="If false, skip full totals calculations for faster paging")
 ):
     """
     Get ledger-wise outstanding - bills grouped by party with subtotals like Tally
@@ -459,15 +469,17 @@ async def get_ledgerwise_outstanding(
             })
             grand_total += party_total
         
+        totals_obj = {
+            "party_count": len(ledger_data),
+            "bill_count": len(bills),
+            "grand_total": grand_total,
+        } if include_totals else {}
+
         return {
             "type": type,
             "report_type": "ledgerwise",
             "data": ledger_data,
-            "totals": {
-                "party_count": len(ledger_data),
-                "bill_count": len(bills),
-                "grand_total": grand_total
-            }
+            "totals": totals_obj
         }
     except Exception as e:
         logger.error(f"Failed to get ledgerwise outstanding: {e}")

@@ -390,11 +390,12 @@ class TallyService:
         to_date: str = None,
         page: int = 1,
         page_size: int = 50,
+        include_totals: bool = True,
         token: str = None
     ) -> Dict[str, Any]:
         """Get bill-wise outstanding"""
         try:
-            params = {"type": type, "page": page, "page_size": page_size}
+            params = {"type": type, "page": page, "page_size": page_size, "include_totals": include_totals}
             if company:
                 params["company"] = company
             if from_date:
@@ -421,11 +422,12 @@ class TallyService:
         company: str = None,
         from_date: str = None,
         to_date: str = None,
+        include_totals: bool = True,
         token: str = None
     ) -> Dict[str, Any]:
         """Get ledger-wise outstanding"""
         try:
-            params = {"type": type}
+            params = {"type": type, "include_totals": include_totals}
             if company:
                 params["company"] = company
             if from_date:
