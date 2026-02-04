@@ -70,6 +70,7 @@ async def get_outstanding_billwise(
     to_date: Optional[str] = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=10, le=100),
+    include_totals: bool = Query(default=True),
     current_user: User = Depends(get_current_user)
 ):
     """Get bill-wise outstanding - proxies to TallyInsight"""
@@ -79,7 +80,8 @@ async def get_outstanding_billwise(
         from_date=from_date,
         to_date=to_date,
         page=page,
-        page_size=page_size
+        page_size=page_size,
+        include_totals=include_totals,
     )
     return result
 
@@ -90,6 +92,7 @@ async def get_outstanding_ledgerwise(
     company: Optional[str] = None,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    include_totals: bool = Query(default=True),
     current_user: User = Depends(get_current_user)
 ):
     """Get ledger-wise outstanding - proxies to TallyInsight"""
@@ -97,7 +100,8 @@ async def get_outstanding_ledgerwise(
         type=type,
         company=company,
         from_date=from_date,
-        to_date=to_date
+        to_date=to_date,
+        include_totals=include_totals,
     )
     return result
 

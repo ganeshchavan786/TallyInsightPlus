@@ -190,8 +190,45 @@ class DatabaseService:
             
             # Ensure audit tables exist
             await self.ensure_audit_tables()
+
+            # Ensure performance indexes exist
+            await self.ensure_performance_indexes()
         except Exception as e:
             logger.error(f"Failed to create tables: {e}")
+            raise
+
+    async def ensure_performance_indexes(self) -> None:
+        conn = await self._get_connection()
+
+        try:
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_trn_bill_company_guid ON trn_bill(_company, guid)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_trn_bill_company_ledger_name ON trn_bill(_company, ledger, name)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_trn_bill_company_billtype ON trn_bill(_company, billtype)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_trn_voucher_company_guid ON trn_voucher(_company, guid)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_mst_ledger_company_name ON mst_ledger(_company, name)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_mst_ledger_company_parent ON mst_ledger(_company, parent)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_opening_bill_company_ledger_name ON mst_opening_bill_allocation(_company, ledger, name)"
+            )
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_opening_bill_company_bill_date ON mst_opening_bill_allocation(_company, bill_date)"
+            )
+
+            await conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to ensure performance indexes: {e}")
             raise
     
     async def _ensure_company_column_exists(self) -> None:
