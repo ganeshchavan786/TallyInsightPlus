@@ -191,7 +191,7 @@ const Auth = {
 
 document.addEventListener('DOMContentLoaded', () => {
   const publicPages = ['login.html', 'register.html', 'forgot-password.html', 'reset-password.html', 'components.html'];
-  const companyRequiredPages = ['users.html', 'companies.html', 'audit.html'];
+  const companyRequiredPages = ['users.html', 'companies.html', 'audit.html', 'email-settings.html'];
   const currentPage = window.location.pathname.split('/').pop();
 
   // Public pages - no auth required

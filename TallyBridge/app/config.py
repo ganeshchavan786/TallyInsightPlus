@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Email Settings Encryption
+    EMAIL_SETTINGS_ENCRYPTION_KEY: str = "change-me-email-settings-key"
     
     # Allowed Hosts
     ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "0.0.0.0", "*"]
@@ -42,6 +45,18 @@ class Settings(BaseSettings):
     
     # Worker Configuration
     WORKERS: int = 1
+
+    # Redis (Queue/Status)
+    REDIS_URL: str = "redis://localhost:6379/0"
+    EXPORT_JOBS_QUEUE_NAME: str = "export_jobs"
+    EMAIL_JOBS_QUEUE_NAME: str = "email_jobs"
+
+    EMAIL_MAX_RETRY_COUNT: int = 5
+    EMAIL_RETRY_BACKOFF_SECONDS: str = "30,120,300,900,1800"
+    EMAIL_RETRY_SWEEP_INTERVAL_SECONDS: int = 5
+
+    # Export file storage (Local Disk)
+    EXPORT_STORAGE_DIR: str = "./export_files"
     
     # Logging
     LOG_LEVEL: str = "INFO"

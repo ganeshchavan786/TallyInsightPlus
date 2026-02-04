@@ -181,6 +181,12 @@ const API = {
       const query = company ? `?company=${encodeURIComponent(company)}` : '';
       return API.get(`/tally/reports/dashboard${query}`);
     }
+  },
+
+  adminEmailSettings: {
+    get: (companyId) => API.get(`/admin/email-settings?company_id=${companyId}`),
+    save: (data) => API.put('/admin/email-settings', data),
+    test: (data) => API.post('/admin/email-settings/test', data)
   }
 };
 
