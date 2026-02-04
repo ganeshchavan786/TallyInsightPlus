@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import SessionLocal
 from app.models.export_job import ExportJob
-from app.services.redis_queue import dequeue_export_job
+from app.services.redis_queue import dequeue_export_job, inflight_add, inflight_remove, set_worker_heartbeat
 
 
 def _ensure_export_dir() -> str:
@@ -74,8 +74,15 @@ def _process_job(job_id: int) -> None:
 def run_forever(poll_timeout_seconds: int = 5) -> None:
     _ensure_export_dir()
 
+    last_heartbeat = 0.0
+
     while True:
-        msg = dequeue_export_job(block_seconds=poll_timeout_seconds)
+        now = time.time()
+        if now - last_heartbeat >= 5.0:
+            set_worker_heartbeat("export", ttl_seconds=60)
+            last_heartbeat = now
+
+        msg = dequeue_export_job(timeout=poll_timeout_seconds)
         if not msg:
             continue
 
@@ -83,7 +90,11 @@ def run_forever(poll_timeout_seconds: int = 5) -> None:
         if not isinstance(job_id, int):
             continue
 
-        _process_job(job_id)
+        inflight_add(settings.EXPORT_JOBS_QUEUE_NAME, str(job_id))
+        try:
+            _process_job(job_id)
+        finally:
+            inflight_remove(settings.EXPORT_JOBS_QUEUE_NAME, str(job_id))
 
 
 if __name__ == "__main__":

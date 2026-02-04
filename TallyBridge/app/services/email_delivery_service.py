@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from app.models.email_audit import EmailAudit
 from app.models.email_settings import EmailSettings
 from app.models.user import User
-from app.services.redis_queue import enqueue_email_job
+from app.services.redis_queue import dlq_push, enqueue_email_job
 from app.services.smtp_sender import send_smtp_email
 from app.config import settings
 from app.utils.crypto import decrypt_text
@@ -302,6 +302,17 @@ class EmailDeliveryService:
             if retry_count > settings.EMAIL_MAX_RETRY_COUNT:
                 audit.status = 'dead'
                 audit.error_message = err
+                try:
+                    dlq_push(
+                        "email",
+                        {
+                            "audit_id": audit.id,
+                            "payload": payload,
+                            "error": err,
+                        },
+                    )
+                except Exception:
+                    pass
                 EmailDeliveryService._set_retry_meta(
                     audit,
                     {

@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.config import settings
 from app.database import engine, Base, get_db_info
 from app.routes import auth, company, user, permission, email, tally, reports, exports_jobs, admin_email_settings, email_delivery
+from app.routes import admin_redis_dashboard
 import app.models
 from app.middleware import (
     RequestContextMiddleware,
@@ -196,6 +197,7 @@ app.include_router(reports.router, prefix=API_V1_PREFIX, tags=["v1 - Reports"])
 app.include_router(exports_jobs.router, prefix=API_V1_PREFIX, tags=["v1 - Export Jobs"])
 app.include_router(admin_email_settings.router, prefix=API_V1_PREFIX, tags=["v1 - Admin Email Settings"])
 app.include_router(email_delivery.router, prefix=API_V1_PREFIX, tags=["v1 - Email Delivery"])
+app.include_router(admin_redis_dashboard.router, prefix=API_V1_PREFIX, tags=["v1 - Admin Redis Dashboard"])
 
 # Legacy routes (backward compatibility) - will be deprecated
 LEGACY_PREFIX = "/api"
@@ -206,6 +208,16 @@ app.include_router(permission.router, prefix=LEGACY_PREFIX, tags=["Legacy"], inc
 app.include_router(exports_jobs.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
 app.include_router(admin_email_settings.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
 app.include_router(email_delivery.router, prefix=LEGACY_PREFIX, tags=["Legacy"], include_in_schema=False)
+
+
+@app.get("/admin/redis-dashboard.html")
+async def admin_redis_dashboard_shortcut():
+    return RedirectResponse(url="/frontend/admin/redis-dashboard.html")
+
+
+@app.get("/admin/{path:path}")
+async def admin_frontend_redirect(path: str):
+    return RedirectResponse(url=f"/frontend/admin/{path}")
 
 
 # ==================== STATIC FILES (Frontend) ====================
